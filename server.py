@@ -1,17 +1,16 @@
 import whisper
 import requests
-import os
 from flask import Flask, request, send_file
 from pydub import AudioSegment
-
 import config
+import os
 
 app = Flask(__name__)
 
-# carico modello whisper italiano
-model = whisper.load_model("small")  # puoi usare tiny/medium/large
+# Carica modello Whisper italiano
+model = whisper.load_model("small")  # tiny/medium/large se vuoi
 
-# funzione GPT-4-mini
+# Funzione GPT-4-mini
 def ask_gpt(prompt):
     import openai
     openai.api_key = config.OPENAI_API_KEY
@@ -21,7 +20,7 @@ def ask_gpt(prompt):
     )
     return response.choices[0].message.content
 
-# funzione ElevenLabs TTS
+# Funzione ElevenLabs TTS
 def speak_elevenlabs(text, output_file="audio.mp3"):
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{config.ELEVENLABS_VOICE_ID}"
     headers = {
@@ -37,18 +36,18 @@ def speak_elevenlabs(text, output_file="audio.mp3"):
         f.write(r.content)
     return output_file
 
-# endpoint per ricevere audio dal telefono
+# Endpoint per ricevere audio dal telefono
 @app.route("/ask", methods=["POST"])
 def ask():
     audio_file = request.files["audio"]
     audio_path = f"audio/{audio_file.filename}"
     audio_file.save(audio_path)
 
-    # trascrizione con whisper
+    # Trascrizione con Whisper
     result = model.transcribe(audio_path, language="it")
     text_input = result["text"]
 
-    # invio a GPT
+    # Invio a GPT
     response_text = ask_gpt(text_input)
 
     # TTS ElevenLabs
