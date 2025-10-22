@@ -1,433 +1,324 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-<meta charset="utf-8" />
-<title>Jarvis Assistant</title>
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<style>
-  :root{--bg1:#0f1117;--bg2:#1c1f2a;--accent:#58a6ff;--green:#238636;--muted:#9fb3ff}
-  html,body{height:100%;margin:0;font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif;background:linear-gradient(to bottom,var(--bg1),var(--bg2));color:#c9d1d9}
-  .header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;box-sizing:border-box}
-  h1{color:var(--accent);margin:0;font-size:1.2rem}
-  .controls{display:flex;gap:10px;align-items:center}
-  button{background:var(--green);color:#fff;border:none;border-radius:10px;padding:8px 14px;cursor:pointer;font-size:14px}
-  button.secondary{background:#2a2f3a}
-  #status{color:var(--muted);margin-left:10px}
-  main{display:flex;gap:16px;padding:16px;height:calc(100vh - 72px);box-sizing:border-box}
-  .left{flex:1;background:rgba(255,255,255,0.02);border-radius:10px;padding:12px;overflow:auto}
-  .right{width:320px;background:rgba(255,255,255,0.02);border-radius:10px;padding:12px;overflow:auto}
-  .log{font-family:monospace;font-size:13px;white-space:pre-wrap;color:#c9d1d9}
-  audio{width:100%;margin-top:12px;border-radius:8px}
-  canvas#visualizer{position:fixed;inset:0;z-index:-1}
-  /* mic indicator */
-  .mic-wrap{display:flex;align-items:center;gap:12px}
-  .mic-indicator{width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,0.03);display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 6px 18px rgba(0,0,0,0.4)}
-  .mic-dot{width:18px;height:18px;border-radius:50%;background:#4b5563;transition:transform .12s,background .12s,box-shadow .12s}
-  .mic-dot.listening{background:#7efc8d;transform:scale(1.25);box-shadow:0 0 12px rgba(126,252,141,0.6)}
-  .level-bar{width:8px;height:34px;background:transparent;position:absolute;left:8px;bottom:6px;display:flex;flex-direction:column;gap:2px}
-  .level-bar span{display:block;width:100%;height:4px;background:rgba(255,255,255,0.04);border-radius:2px;transition:background .08s}
-  .level-bar span.active{background:#7efc8d}
-</style>
+  <meta charset="utf-8" />
+  <title>Jarvis - WebSocket streaming</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: Segoe UI, Tahoma, sans-serif; background: linear-gradient(#0f1117,#1c1f2a); color:#c9d1d9; margin:0; height:100vh; overflow:hidden }
+    header { display:flex; justify-content:space-between; padding:12px 16px; align-items:center }
+    h1 { color:#58a6ff; margin:0; font-size:1.1rem }
+    .controls { display:flex; gap:10px; align-items:center }
+    button { background:#238636; border:none; color:white; padding:8px 12px; border-radius:8px; cursor:pointer }
+    main { display:flex; gap:14px; padding:12px; height:calc(100vh - 60px); box-sizing:border-box }
+    .left { flex:1; background:rgba(255,255,255,0.02); border-radius:10px; padding:12px; overflow:auto }
+    .right { width:340px; background:rgba(255,255,255,0.02); border-radius:10px; padding:12px; overflow:auto }
+    .log { font-family:monospace; font-size:13px; white-space:pre-wrap }
+    audio { width:100%; margin-top:8px; border-radius:8px }
+    #mic { width:54px; height:54px; border-radius:50%; background:#222; display:flex; align-items:center; justify-content:center }
+    #mic.on { box-shadow:0 0 18px rgba(126,252,141,0.4) }
+  </style>
 </head>
 <body>
-  <div class="header">
-    <h1>🎙️ Jarvis pronto</h1>
-    <div class="controls">
-      <div class="mic-wrap">
-        <div class="mic-indicator" id="mic-indicator" title="Stato microfono">
-          <div class="mic-dot" id="mic-dot"></div>
-          <div class="level-bar" id="level-bar">
-            <span></span><span></span><span></span><span></span><span></span>
-          </div>
-        </div>
-        <div id="status">Stato: inattivo</div>
-      </div>
-      <button id="manual-toggle">Avvia/Interrompi</button>
-      <button id="debug-clear" class="secondary">Pulisci log</button>
-    </div>
+<header>
+  <h1>Jarvis (WS)</h1>
+  <div class="controls">
+    <div id="mic" title="microfono">🎙️</div>
+    <button id="btn-start">Avvia</button>
+    <button id="btn-stop">Ferma</button>
   </div>
-
-  <main>
-    <div class="left">
-      <div><strong>Trascrizione</strong></div>
-      <div id="transcript" class="log"></div>
-
-      <div style="margin-top:12px"><strong>Risposta GPT</strong></div>
-      <div id="gpt" class="log"></div>
-
-      <audio id="jarvis-voice" autoplay></audio>
-    </div>
-
-    <div class="right">
-      <div><strong>Debug log</strong></div>
-      <div id="debug" class="log"></div>
-
-      <div style="margin-top:12px"><strong>Ultime azioni</strong></div>
-      <div id="actions" class="log"></div>
-    </div>
-  </main>
-
-  <canvas id="visualizer"></canvas>
+</header>
+<main>
+  <div class="left">
+    <div><strong>Transcript (local)</strong></div>
+    <div id="trans" class="log"></div>
+    <div style="margin-top:8px"><strong>GPT partial / final</strong></div>
+    <div id="gpt" class="log"></div>
+    <audio id="player" autoplay></audio>
+  </div>
+  <div class="right">
+    <div><strong>Debug</strong></div>
+    <div id="debug" class="log"></div>
+    <div style="margin-top:12px"><strong>Actions</strong></div>
+    <div id="act" class="log"></div>
+  </div>
+</main>
 
 <script>
 /*
-  Client-side logic:
-  - capture raw audio with WebAudio (ScriptProcessor)
-  - compute short-term RMS to detect speech/silence
-  - when user starts speaking: begin buffering
-  - when silence > SILENCE_TIMEOUT: stop, build WAV 16k mono PCM16 and send
-  - while TTS playing, block listening; after playback ends, restart listening automatically
-  - manual toggle button to start/stop the whole system
-  - visual mic indicator with level bars and dot
+Complete client JS:
+- stable WebSocket in `ws`
+- VAD capture via WebAudio, resample to 16000, encode WAV PCM16
+- send with ws.send(...)
+- handle server messages: transcript, partial_text, audio_chunk, done, error
+- queue audio chunks and play immediately without re-recording (blocked while playing)
+- robust logging and safety checks
 */
 
-// CONFIG
-const SILENCE_THRESHOLD_DB = -50;   // silence threshold in dBFS (approx)
-const SILENCE_TIMEOUT_MS = 900;     // how long below threshold to consider "end of speech"
-const MIN_RECORD_MS = 150;          // ignore extremely short bursts
-const RESAMPLE_RATE = 16000;        // target sample rate for WAV sent to server
+const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
+let ws = null;
 
-// DOM
-const statusEl = document.getElementById('status');
-const transcriptEl = document.getElementById('transcript');
+const btnStart = document.getElementById('btn-start');
+const btnStop = document.getElementById('btn-stop');
+const transEl = document.getElementById('trans');
 const gptEl = document.getElementById('gpt');
 const debugEl = document.getElementById('debug');
-const actionsEl = document.getElementById('actions');
-const audioPlayer = document.getElementById('jarvis-voice');
-const micDot = document.getElementById('mic-dot');
-const levelBar = document.getElementById('level-bar');
-const manualToggle = document.getElementById('manual-toggle');
-const debugClear = document.getElementById('debug-clear');
+const actEl = document.getElementById('act');
+const micEl = document.getElementById('mic');
+const player = document.getElementById('player');
 
 let audioContext = null;
-let mediaStream = null;
 let sourceNode = null;
 let processor = null;
+let stream = null;
 
 let recording = false;
-let listeningEnabled = false; // overall system enabled
-let blockedDuringTts = false;
-
-let buffer = []; // Float32Array chunks
+let buffer = [];
 let bufferLen = 0;
-let recordStartTs = 0;
+let sampleRate = 48000;
+const OUT_RATE = 16000;
 
-// silence detection state
-let lastVoiceTs = 0;
+const SILENCE_DB = -50;     // threshold
+const SILENCE_MS = 700;     // end-of-speech timeout
 let voiceActive = false;
 let silenceTimer = null;
+let blocked = false;        // block capturing while sending / playing
 
-// small helpers
-function logDebug(msg){ debugEl.innerText = `[${new Date().toLocaleTimeString()}] ${msg}\n` + debugEl.innerText; }
-function logAction(msg){ actionsEl.innerText = `[${new Date().toLocaleTimeString()}] ${msg}\n` + actionsEl.innerText; }
-function setStatus(txt){ statusEl.innerText = "Stato: " + txt; }
+// audio queue for progressive chunks
+const audioQueue = [];
 
-/* convert linear RMS -> dBFS approximation */
-function rmsToDb(rms){
-  const min = 1e-8;
-  return 20 * Math.log10(Math.max(rms, min));
+// utility logs
+function logDebug(s){ debugEl.innerText = `[${new Date().toLocaleTimeString()}] ${s}\n` + debugEl.innerText; }
+function logAct(s){ actEl.innerText = `[${new Date().toLocaleTimeString()}] ${s}\n` + actEl.innerText; }
+
+function enableMicUI(v){ micEl.classList.toggle('on', v); }
+
+// RMS to dB
+function rmsToDb(rms){ const min=1e-8; return 20*Math.log10(Math.max(rms,min)); }
+
+// WebSocket connect
+function wsConnect(){
+  if(ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  logDebug('Connecting WebSocket...');
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    logDebug('WS connected');
+    try { ws.send(JSON.stringify({type:'start_session', session_id:'matteo'})); }
+    catch(e){ logDebug('WS send start_session failed: '+e); }
+  };
+
+  ws.onmessage = (ev) => {
+    try {
+      const msg = JSON.parse(ev.data);
+      handleServerMsg(msg);
+    } catch(e) {
+      logDebug('ws parse err: '+ e);
+    }
+  };
+
+  ws.onclose = (ev) => {
+    logDebug('WS closed code=' + (ev.code || 'n/a'));
+    ws = null;
+  };
+
+  ws.onerror = (e) => { logDebug('WS error'); };
 }
 
-/* update mic visual indicator */
-function updateMicUI(level){
-  // level: 0..1
-  const bars = levelBar.querySelectorAll('span');
-  const active = Math.round(level * bars.length);
-  bars.forEach((b,i)=> b.classList.toggle('active', i < active));
-  micDot.classList.toggle('listening', level > 0.06);
+// handle incoming server messages
+function handleServerMsg(msg){
+  if(!msg || !msg.type) return;
+  if(msg.type === 'info'){ logDebug('info: '+msg.message); }
+  else if(msg.type === 'transcript'){ transEl.innerText = msg.text; }
+  else if(msg.type === 'partial_text'){ gptEl.innerText += msg.delta; }
+  else if(msg.type === 'audio_chunk'){
+    if(msg.audio_b64){
+      enqueueAudioChunk(msg.audio_b64);
+    }
+  }
+  else if(msg.type === 'done'){ gptEl.innerText = msg.full; }
+  else if(msg.type === 'error'){ logDebug('server error: '+msg.message); }
 }
 
-/* start whole listening system */
-async function startSystem(){
-  if (listeningEnabled) return;
-  try {
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio:true });
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    sourceNode = audioContext.createMediaStreamSource(mediaStream);
-    processor = audioContext.createScriptProcessor(4096, 1, 1);
-    processor.onaudioprocess = handleAudioProcess;
-    sourceNode.connect(processor);
-    processor.connect(audioContext.destination); // some browsers require
-    listeningEnabled = true;
-    setStatus('ascolto attivo');
-    logAction('Sistema ascolto avviato');
-  } catch (e){
-    logDebug('Errore getUserMedia: ' + e.message);
-    setStatus('errore microfono');
+// enqueue and play audio chunks sequentially
+function enqueueAudioChunk(b64){
+  audioQueue.push(b64);
+  if(!player.src || player.ended || player.paused){
+    playNextChunk();
+  } else {
+    // it will be played when current ends because of ended handler
   }
 }
 
-/* stop whole listening system */
-function stopSystem(){
-  if (!listeningEnabled) return;
+// play next audio chunk from queue
+function playNextChunk(){
+  if(audioQueue.length === 0){ blocked = false; logAct('no queued audio, listening re-enabled'); return; }
+  const b64 = audioQueue.shift();
+  const bin = atob(b64);
+  const len = bin.length;
+  const arr = new Uint8Array(len);
+  for(let i=0;i<len;i++) arr[i] = bin.charCodeAt(i);
+  const blob = new Blob([arr.buffer], {type: 'audio/mpeg'});
+  const url = URL.createObjectURL(blob);
+  blocked = true;
+  player.src = url;
+  player.play().catch(e => { logDebug('play err: '+e); blocked = false; });
+}
+
+// when playback ends, play next or re-enable listening
+player.addEventListener('ended', ()=>{
+  // small delay to avoid capturing TTS
+  setTimeout(()=> {
+    if(audioQueue.length>0) playNextChunk();
+    else { blocked = false; logAct('playback ended, listening re-enabled'); }
+  }, 220);
+});
+
+// capture control
+btnStart.onclick = ()=> startCapture();
+btnStop.onclick = ()=> stopCapture();
+
+async function startCapture(){
+  if(recording) return;
+  if(!ws) wsConnect();
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    sampleRate = audioContext.sampleRate || 48000;
+    sourceNode = audioContext.createMediaStreamSource(stream);
+    processor = audioContext.createScriptProcessor(4096,1,1);
+    processor.onaudioprocess = onAudio;
+    sourceNode.connect(processor);
+    processor.connect(audioContext.destination);
+    recording = true;
+    logAct('started capture');
+    enableMicUI(true);
+  } catch(e) {
+    logDebug('getUserMedia err: '+ e);
+  }
+}
+
+function stopCapture(){
+  if(!recording) return;
   try {
     processor.disconnect();
     sourceNode.disconnect();
-    mediaStream.getTracks().forEach(t=>t.stop());
+    stream.getTracks().forEach(t => t.stop());
+    audioContext.close();
   } catch(e){}
-  try { audioContext.close(); } catch(e){}
-  processor = null; sourceNode = null; audioContext = null; mediaStream = null;
-  listeningEnabled = false;
-  setStatus('inattivo');
-  logAction('Sistema ascolto fermato');
-}
-
-/* audio process handler: compute level and store chunks when voice active */
-function handleAudioProcess(ev){
-  if (!ev.inputBuffer) return;
-  const input = ev.inputBuffer.getChannelData(0);
-  // compute RMS
-  let sum = 0;
-  for (let i=0;i<input.length;i++){ const s = input[i]; sum += s*s; }
-  const rms = Math.sqrt(sum / input.length);
-  const db = rmsToDb(rms);
-  // normalized level 0..1 for UI (clamp)
-  const levelNorm = Math.min(1, Math.max(0, (db + 60) / 60));
-  updateMicUI(levelNorm);
-
-  if (blockedDuringTts || !listeningEnabled) {
-    // ignore while blocked
-    return;
-  }
-
-  const now = performance.now();
-
-  if (db > SILENCE_THRESHOLD_DB){
-    // voice detected
-    lastVoiceTs = now;
-    if (!voiceActive){
-      voiceActive = true;
-      recordStartTs = now;
-      buffer = []; bufferLen = 0;
-      logAction('Voce rilevata: inizio buffering');
-    }
-    // store chunk
-    buffer.push(new Float32Array(input));
-    bufferLen += input.length;
-    // cancel any pending silence timer
-    if (silenceTimer){ clearTimeout(silenceTimer); silenceTimer = null; }
-  } else {
-    // below threshold
-    if (voiceActive){
-      // schedule silence timeout
-      if (!silenceTimer){
-        silenceTimer = setTimeout(()=> {
-          const recordDuration = performance.now() - recordStartTs;
-          voiceActive = false;
-          silenceTimer = null;
-          if (recordDuration >= MIN_RECORD_MS){
-            onSpeechEnd();
-          } else {
-            // drop too-short burst
-            buffer = []; bufferLen = 0;
-            logDebug('Burst troppo corto, ignorato');
-          }
-        }, SILENCE_TIMEOUT_MS);
-      }
-      // still keep collecting small tails to make smoother end
-      buffer.push(new Float32Array(input));
-      bufferLen += input.length;
-    }
-  }
-}
-
-/* called when voice end detected */
-function onSpeechEnd(){
-  logAction('Fine parlato rilevato, preparazione invio');
-  // prepare WAV PCM16 16k mono
-  const inRate = audioContext.sampleRate;
-  const outRate = RESAMPLE_RATE;
-  // merge buffer
-  let merged = new Float32Array(bufferLen);
-  let offset = 0;
-  for (let i=0;i<buffer.length;i++){
-    merged.set(buffer[i], offset); offset += buffer[i].length;
-  }
+  recording = false;
   buffer = []; bufferLen = 0;
-  // resample linear interpolation
-  const sampleRatio = inRate / outRate;
-  const newLen = Math.round(merged.length / sampleRatio);
+  enableMicUI(false);
+  logAct('stopped capture');
+}
+
+// audio processing and VAD
+function onAudio(e){
+  if(!recording || blocked) return;
+  const input = e.inputBuffer.getChannelData(0);
+  let sum = 0;
+  for(let i=0;i<input.length;i++) sum += input[i]*input[i];
+  const rms = Math.sqrt(sum/input.length);
+  const db = rmsToDb(rms);
+
+  if(db > SILENCE_DB){
+    // voice present
+    voiceActive = true;
+    lastPiecePush(input);
+    if(silenceTimer){ clearTimeout(silenceTimer); silenceTimer = null; }
+  } else {
+    // silence
+    if(voiceActive && !silenceTimer){
+      silenceTimer = setTimeout(()=> {
+        voiceActive = false; silenceTimer = null;
+        const durationMs = (bufferLen / sampleRate) * 1000;
+        if(durationMs > 60){
+          sendBufferedWav();
+        } else {
+          buffer=[]; bufferLen=0;
+        }
+      }, SILENCE_MS);
+    } else if(voiceActive){
+      lastPiecePush(input);
+    }
+  }
+}
+
+function lastPiecePush(chunk){
+  buffer.push(new Float32Array(chunk));
+  bufferLen += chunk.length;
+}
+
+// resample+encode WAV 16-bit PCM little-endian
+function encodeWav(samples, outRate){
+  // merge
+  let total = 0; for(let i=0;i<samples.length;i++) total += samples[i].length;
+  let merged = new Float32Array(total);
+  let off = 0;
+  for(let i=0;i<samples.length;i++){ merged.set(samples[i], off); off += samples[i].length; }
+
+  const ratio = sampleRate / outRate;
+  const newLen = Math.round(merged.length / ratio);
   const resampled = new Float32Array(newLen);
-  for (let i=0;i<newLen;i++){
-    const idx = i * sampleRatio;
-    const i0 = Math.floor(idx);
-    const i1 = Math.min(Math.ceil(idx), merged.length - 1);
+  for(let i=0;i<newLen;i++){
+    const idx = i * ratio;
+    const i0 = Math.floor(idx), i1 = Math.min(Math.ceil(idx), merged.length - 1);
     const frac = idx - i0;
     resampled[i] = merged[i0] * (1 - frac) + merged[i1] * frac;
   }
-  const wavBuffer = encodeWAV(resampled, outRate);
-  const base64 = arrayBufferToBase64(wavBuffer);
-  // block listening while awaiting response/TTS
-  blockedDuringTts = true;
-  logDebug('Invio audio al server, size ' + Math.round(wavBuffer.byteLength/1024) + ' KB');
-  sendWav(base64).then(()=> {
-    // do nothing here; on playback events we will re-enable listening
-  }).catch(err=>{
-    logDebug('Errore invio/audio: ' + err);
-    // re-enable if error
-    blockedDuringTts = false;
-  });
+
+  const bytesPerSample = 2;
+  const dataSize = resampled.length * bytesPerSample;
+  const bufferOut = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(bufferOut);
+
+  function writeStr(o, s){ for(let i=0;i<s.length;i++) view.setUint8(o+i, s.charCodeAt(i)); }
+  writeStr(0,'RIFF'); view.setUint32(4,36+dataSize,true); writeStr(8,'WAVE'); writeStr(12,'fmt ');
+  view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true);
+  view.setUint32(24,outRate,true); view.setUint32(28,outRate * bytesPerSample,true);
+  view.setUint16(32, bytesPerSample, true); view.setUint16(34,16,true); writeStr(36,'data');
+  view.setUint32(40,dataSize,true);
+  let p = 44;
+  for(let i=0;i<resampled.length;i++,p+=2){
+    let s = Math.max(-1, Math.min(1, resampled[i]));
+    view.setInt16(p, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+  return bufferOut;
 }
 
-/* encode Float32Array -> WAV PCM16 mono */
-function encodeWAV(samples, sampleRate){
-  const bytesPerSample = 2;
-  const blockAlign = bytesPerSample;
-  const byteRate = sampleRate * blockAlign;
-  const dataSize = samples.length * bytesPerSample;
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
-  /* RIFF */
-  writeStr(view, 0, 'RIFF');
-  view.setUint32(4, 36 + dataSize, true);
-  writeStr(view, 8, 'WAVE');
-  writeStr(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true); // mono
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, 16, true);
-  writeStr(view, 36, 'data');
-  view.setUint32(40, dataSize, true);
-  // PCM16 samples
-  let offset = 44;
-  for (let i=0;i<samples.length;i++, offset += 2){
-    let s = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-  }
-  return buffer;
-}
-function writeStr(view, offset, s){ for (let i=0;i<s.length;i++) view.setUint8(offset + i, s.charCodeAt(i)); }
 function arrayBufferToBase64(buf){
   const bytes = new Uint8Array(buf);
   const chunk = 0x8000;
-  let binary = '';
-  for (let i=0;i<bytes.length;i+=chunk){
-    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i+chunk)));
-  }
-  return btoa(binary);
+  let bin = '';
+  for(let i=0;i<bytes.length;i+=chunk) bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i+chunk)));
+  return btoa(bin);
 }
 
-/* send WAV base64 to server /ask (server expects wav_base64) */
-async function sendWav(base64){
+async function sendBufferedWav(){
+  if(!ws || ws.readyState !== WebSocket.OPEN){
+    logDebug('ws not open, dropping audio');
+    buffer=[]; bufferLen=0;
+    return;
+  }
+  blocked = true;
+  logAct('sending buffered audio to server');
+  const wav = encodeWav(buffer, OUT_RATE);
+  buffer = []; bufferLen = 0;
+  const b64 = arrayBufferToBase64(wav);
+  logDebug('🎤 Invio audio al server...');
   try {
-    const resp = await fetch('/ask', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ wav_base64: base64 })
-    });
-    const data = await resp.json();
-    if (!resp.ok){
-      logDebug('Server error: ' + JSON.stringify(data));
-      blockedDuringTts = false;
-      return;
-    }
-    if (data.text) transcriptEl.innerText = data.text;
-    if (data.gpt) gptEl.innerText = data.gpt;
-    if (data.audio_base64){
-      // create audio blob and play
-      const audioBlob = base64ToBlob(data.audio_base64, 'audio/mp3');
-      audioPlayer.src = URL.createObjectURL(audioBlob);
-      logAction('Ricevuta risposta, riproduzione');
-      audioPlayer.play().catch(err=> logDebug('Play error: '+err));
-    } else {
-      // re-enable listening if no TTS returned
-      blockedDuringTts = false;
-    }
-  } catch (e){
-    logDebug('Fetch /ask failed: ' + e);
-    blockedDuringTts = false;
+    ws.send(JSON.stringify({type: "wav", wav_base64: b64}));
+  } catch(e){
+    logDebug('ws.send failed: ' + e);
+    blocked = false;
   }
 }
 
-/* helper: base64 -> Blob */
-function base64ToBlob(b64, type='audio/mpeg'){
-  const binary = atob(b64);
-  const len = binary.length;
-  const arr = new Uint8Array(len);
-  for (let i=0;i<len;i++) arr[i] = binary.charCodeAt(i);
-  return new Blob([arr], { type });
-}
-
-/* re-enable listening when audio playback ends */
-audioPlayer.addEventListener('ended', ()=>{
-  blockedDuringTts = false;
-  logAction('Riproduzione terminata: riattivo ascolto');
-  // slight delay to avoid capturing TTS tail
-  setTimeout(()=> { if (listeningEnabled) setStatus('ascolto attivo'); }, 120);
-});
-
-/* if user manually pauses playback, also re-enable */
-audioPlayer.addEventListener('pause', ()=>{
-  if (!audioPlayer.src) return;
-  blockedDuringTts = false;
-});
-
-/* manual toggle button */
-manualToggle.addEventListener('click', ()=>{
-  if (!listeningEnabled){
-    startSystem();
-  } else {
-    stopSystem();
-  }
-});
-
-/* debug clear */
-debugClear.addEventListener('click', ()=> { debugEl.innerText=''; actionsEl.innerText=''; });
-
-/* start automatically on load */
+// Init on load
 window.addEventListener('load', ()=> {
-  // small user interaction required on some browsers for autoplay; allow manual first click
-  // auto-start only if user previously granted permission (best-effort)
-  logDebug('Pagina pronta. Premi Avvia/Interrompi per iniziare oppure premi Avvia automaticamente con autorizzazione microfono.');
+  wsConnect();
+  logDebug('Client ready');
 });
-
-/* utility to set status text (keeps previous setStatus usage) */
-function setStatusText(s){ setStatus(s); }
-
-/* small visual loop to pulse mic-dot when blockedDuringTts is false but listeningEnabled true */
-setInterval(()=>{
-  if (listeningEnabled && !blockedDuringTts){
-    micDot.style.transform = 'scale(1.02)';
-  } else {
-    micDot.style.transform = 'scale(1)';
-    // clear level bars
-    const bars = levelBar.querySelectorAll('span');
-    bars.forEach(b => b.classList.remove('active'));
-  }
-}, 300);
-
-/* create level bar inner spans on load (in case not present) */
-(function ensureLevelBars(){
-  const bars = levelBar.querySelectorAll('span');
-  if (bars.length === 0){
-    for (let i=0;i<5;i++){
-      const s = document.createElement('span'); levelBar.appendChild(s);
-    }
-  }
-})();
-
-/* Visualizer background simple animation */
-const canvas = document.getElementById('visualizer');
-const ctx = canvas.getContext('2d');
-function resizeCanvas(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-function drawBg(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  const t = Date.now() * 0.002;
-  for (let i=0;i<120;i++){
-    const x = Math.sin(i*0.12 + t) * 260 + canvas.width/2;
-    const y = i * (canvas.height / 120);
-    ctx.fillStyle = `hsla(${(i*3 + t)%360},70%,45%,${0.04})`;
-    ctx.fillRect(x, y, 2, 2);
-  }
-  requestAnimationFrame(drawBg);
-}
-drawBg();
 </script>
 </body>
 </html>
-```
