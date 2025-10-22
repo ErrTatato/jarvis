@@ -5371,3 +5371,37 @@ Error opening input files: Invalid data found when processing input
 2025-10-22 15:34:02,293 INFO HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
 2025-10-22 15:34:02,295 INFO GPT risposta: '"Erano maschi" non sembra riferirsi a una figura specifica. Potresti fornire ulteriori dettagli o chiarire a chi ti riferisci? Sarò felice di aiutarti!'
 2025-10-22 15:34:04,841 INFO 100.115.2.31 - - [22/Oct/2025 15:34:04] "POST /ask HTTP/1.1" 200 -
+2025-10-22 15:45:37,024 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on https://127.0.0.1:5000
+ * Running on https://192.168.3.166:5000
+2025-10-22 15:45:37,024 INFO [33mPress CTRL+C to quit[0m
+2025-10-22 15:45:37,026 INFO  * Restarting with stat
+2025-10-22 15:45:41,580 WARNING  * Debugger is active!
+2025-10-22 15:45:41,583 INFO  * Debugger PIN: 890-038-897
+2025-10-22 15:45:44,660 INFO 100.115.2.31 - - [22/Oct/2025 15:45:44] "GET /client HTTP/1.1" 200 -
+2025-10-22 15:45:58,103 INFO Salvato WAV temporaneo: C:\Users\MF5AA~1.PAS\AppData\Local\Temp\tmpd9wykefq.wav (81964 bytes)
+2025-10-22 15:45:59,980 INFO Trascrizione: 'Ciao Jarvis, come stai?'
+2025-10-22 15:46:02,807 INFO HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-22 15:46:02,815 INFO GPT risposta: 'Ciao Matteo! Sono sempre al massimo, pronto a supportarti. E tu?'
+2025-10-22 15:46:04,640 INFO 100.115.2.31 - - [22/Oct/2025 15:46:04] "POST /ask HTTP/1.1" 200 -
+2025-10-22 15:46:14,418 INFO Salvato WAV temporaneo: C:\Users\MF5AA~1.PAS\AppData\Local\Temp\tmpq64z6h9n.wav (79234 bytes)
+2025-10-22 15:46:16,097 INFO Trascrizione: 'Ma io sto bene.'
+2025-10-22 15:46:17,425 INFO HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-22 15:46:17,432 INFO GPT risposta: 'Ottimo da sentire! Come posso assisterti oggi?'
+2025-10-22 15:46:18,882 INFO 100.115.2.31 - - [22/Oct/2025 15:46:18] "POST /ask HTTP/1.1" 200 -
+2025-10-22 15:46:28,093 INFO Salvato WAV temporaneo: C:\Users\MF5AA~1.PAS\AppData\Local\Temp\tmp0r_v0v3e.wav (122924 bytes)
+2025-10-22 15:46:30,048 INFO Trascrizione: 'Potresti dirmi che tempo fa qui a Viterbo?'
+2025-10-22 15:46:31,742 INFO HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-22 15:46:31,744 INFO GPT risposta: "Mi dispiace, ma non ho accesso a dati in tempo reale. Ti consiglio di controllare un'app meteo o un sito web per le informazioni più aggiornate. Posso aiutarti con qualcos'altro?"
+2025-10-22 15:46:34,391 INFO 100.115.2.31 - - [22/Oct/2025 15:46:34] "POST /ask HTTP/1.1" 200 -
+2025-10-22 15:46:55,378 INFO Salvato WAV temporaneo: C:\Users\MF5AA~1.PAS\AppData\Local\Temp\tmp2atkx2qn.wav (215766 bytes)
+2025-10-22 15:46:57,980 INFO Trascrizione: 'Sì, vorrei sapere se tu sei in grado di accedere a tutte le mie applicazioni che ho sul telefono.'
+2025-10-22 15:46:59,777 INFO HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-22 15:46:59,784 INFO GPT risposta: 'No, non ho accesso alle tue applicazioni o ai tuoi dati personali. La tua privacy è fondamentale. Posso solo fornirti informazioni e assistenza basate sulle tue richieste. Come posso aiutarti ulteriormente?'
+2025-10-22 15:47:03,042 INFO 100.115.2.31 - - [22/Oct/2025 15:47:03] "POST /ask HTTP/1.1" 200 -
+2025-10-22 15:47:25,174 INFO Salvato WAV temporaneo: C:\Users\MF5AA~1.PAS\AppData\Local\Temp\tmpfc_hh2ur.wav (150230 bytes)
+2025-10-22 15:47:27,355 INFO Trascrizione: 'Quindi non puoi mandare messaggi su whatsapp al posto mio?'
+2025-10-22 15:47:28,787 INFO HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-10-22 15:47:28,798 INFO GPT risposta: 'Esatto, non posso inviare messaggi su WhatsApp o interagire con altre app al tuo posto. Posso però aiutarti a scrivere un messaggio se ne hai bisogno!'
+2025-10-22 15:47:31,627 INFO 100.115.2.31 - - [22/Oct/2025 15:47:31] "POST /ask HTTP/1.1" 200 -
