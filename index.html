@@ -2,73 +2,51 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<title>Jarvis Client</title>
+<title>Jarvis Assistant</title>
+<style>
+body { font-family: Arial, sans-serif; background:#0d1117; color:#c9d1d9; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
+button { background:#238636;color:white;border:none;border-radius:10px;padding:15px 25px;font-size:18px;cursor:pointer;margin-top:20px; }
+button:hover { background:#2ea043; }
+#status{margin-top:15px;font-size:18px;}
+</style>
 </head>
 <body>
-<h1>Jarvis è pronto!</h1>
+<h1>🎙️ Jarvis pronto</h1>
 <button id="start-btn">Attiva ascolto</button>
 <p id="status">Stato: inattivo</p>
+<audio id="jarvis-voice" autoplay></audio>
+
 <script>
-let recognizing = false;
-let recognition;
+let mediaRecorder, audioChunks=[], audioPlayer=document.getElementById('jarvis-voice');
 
-if (!('webkitSpeechRecognition' in window)) {
-    alert("Il tuo browser non supporta Speech Recognition!");
-} else {
-    recognition = new webkitSpeechRecognition();
-    recognition.lang = 'it-IT';
-    recognition.continuous = true;
-    recognition.interimResults = false;
-
-    recognition.onstart = () => {
-        recognizing = true;
-        document.getElementById('status').innerText = "Stato: in ascolto...";
-    };
-
-    recognition.onend = () => {
-        recognizing = false;
-        document.getElementById('status').innerText = "Stato: inattivo";
-    };
-
-    recognition.onresult = (event) => {
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-                const transcript = event.results[i][0].transcript.trim().toLowerCase();
-                if (transcript.includes("jarvis")) {
-                    document.getElementById('status').innerText = "✨ Jarvis attivato!";
-                    recognition.stop();
-                    startJarvisConversation();
-                }
-            }
-        }
-    };
-}
-
-document.getElementById('start-btn').addEventListener('click', () => {
-    if (!recognizing) {
-        recognition.start();
-    }
+document.getElementById("start-btn").addEventListener("click", async ()=>{
+    try{
+        const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = e => {
+            if(e.data.size>0) sendAudioChunk(e.data);
+        };
+        mediaRecorder.start(500); // chunk ogni 500ms
+        document.getElementById("status").innerText="🎧 Ascolto attivo...";
+    }catch(e){alert("Errore microfono: "+e.message);}
 });
 
-function startJarvisConversation() {
-    const convo = new webkitSpeechRecognition();
-    convo.lang = 'it-IT';
-    convo.continuous = false;
-    convo.interimResults = false;
+async function sendAudioChunk(blob){
+    const arrayBuffer=await blob.arrayBuffer();
+    const base64Chunk=btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    const resp=await fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({audio_base64:base64Chunk})});
+    const data=await resp.json();
+    if(data.audio_base64){
+        const audioBlob=base64ToBlob(data.audio_base64,"audio/mp3");
+        audioPlayer.src=URL.createObjectURL(audioBlob);
+    }
+}
 
-    convo.onresult = (event) => {
-        const userText = event.results[0][0].transcript;
-        fetch('/ask', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({text: userText})
-        })
-        .then(res => res.json())
-        .then(data => {
-            alert("Jarvis dice: " + data.answer);
-        });
-    };
-    convo.start();
+function base64ToBlob(base64,type="audio/mpeg"){
+    const binary=atob(base64);
+    const array=[];
+    for(let i=0;i<binary.length;i++) array.push(binary.charCodeAt(i));
+    return new Blob([new Uint8Array(array)],{type});
 }
 </script>
 </body>

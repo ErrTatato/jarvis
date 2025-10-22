@@ -2,28 +2,38 @@ from flask import Flask, request, jsonify, send_from_directory
 import jarvis_ai
 import ssl
 import os
+import base64
 
 app = Flask(__name__, static_url_path='', static_folder='client')
 
-# Endpoint principale per il client web
+# Endpoint per trascrivere e rispondere
 @app.route("/ask", methods=["POST"])
 def ask():
     data = request.get_json()
-    question = data.get("text", "")
-    if not question:
-        return jsonify({"error": "Nessun testo ricevuto"}), 400
+    audio_chunk = data.get("audio_base64", None)
+    if not audio_chunk:
+        return jsonify({"error": "Nessun audio ricevuto"}), 400
 
-    print(f"\n📱 Domanda ricevuta dal client: {question}")
-    answer = jarvis_ai.ask_gpt(question)
-    jarvis_ai.speak(answer)
-    return jsonify({"answer": answer})
+    # Salva chunk temporaneamente
+    filename = jarvis_ai.save_audio_chunk(audio_chunk)
 
-# Servizio della pagina web
+    # Trascrivi chunk
+    text = jarvis_ai.transcribe_audio_chunk(filename)
+
+    # Se frase completa, genera risposta
+    if text.strip():
+        answer = jarvis_ai.ask_gpt(text)
+        audio_base64 = jarvis_ai.speak(answer, return_base64=True)
+        return jsonify({"answer": answer, "audio_base64": audio_base64})
+    else:
+        return jsonify({"answer": "", "audio_base64": ""})
+
+# Servizio pagina web
 @app.route("/client")
 def client():
     return send_from_directory("", "index.html")
 
-# HTTPS auto-generato con Python
+# HTTPS auto-generato
 CERT_FILE = "cert.pem"
 KEY_FILE = "key.pem"
 
