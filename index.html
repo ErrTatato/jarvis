@@ -4,50 +4,241 @@
 <meta charset="UTF-8">
 <title>Jarvis Assistant</title>
 <style>
-body { font-family: Arial, sans-serif; background:#0d1117; color:#c9d1d9; display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; }
-button { background:#238636;color:white;border:none;border-radius:10px;padding:15px 25px;font-size:18px;cursor:pointer;margin-top:20px; }
-button:hover { background:#2ea043; }
-#status{margin-top:15px;font-size:18px;}
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(to bottom, #0f1117, #1c1f2a); color: #c9d1d9; margin:0; height:100vh; overflow:hidden;}
+.header { padding:14px; display:flex; align-items:center; justify-content:space-between;}
+h1 { color:#58a6ff; margin:0; font-size:1.4rem;}
+.controls { display:flex; gap:8px; align-items:center;}
+button { background:#238636; color:white; border:none; border-radius:10px; padding:8px 14px; cursor:pointer;}
+button.secondary { background:#2a2f3a;}
+#status { color:#9fb3ff; margin-left:12px;}
+main { display:flex; gap:16px; padding:16px; box-sizing:border-box; height:calc(100vh - 72px);}
+.left { flex:1; background: rgba(255,255,255,0.02); border-radius:10px; padding:12px; overflow:auto;}
+.right { width:320px; background: rgba(255,255,255,0.02); border-radius:10px; padding:12px; overflow:auto;}
+.log { font-family:monospace; font-size:13px; color:#c9d1d9; white-space:pre-wrap;}
+audio { width:100%; margin-top:10px; }
+canvas { position: absolute; top: 0; left: 0; z-index: -1; }
 </style>
 </head>
 <body>
-<h1>🎙️ Jarvis pronto</h1>
-<button id="start-btn">Attiva ascolto</button>
-<p id="status">Stato: inattivo</p>
-<audio id="jarvis-voice" autoplay></audio>
+<div class="header">
+  <h1>🎙️ Jarvis pronto</h1>
+  <div class="controls">
+    <button id="start-btn">Avvia ascolto</button>
+    <button id="stop-btn" class="secondary">Ferma</button>
+    <div id="status">Stato: inattivo</div>
+  </div>
+</div>
+
+<main>
+  <div class="left">
+    <div><strong>Trascrizione</strong></div>
+    <div id="transcript" class="log"></div>
+    <div style="margin-top:12px;"><strong>Risposta GPT</strong></div>
+    <div id="gpt" class="log"></div>
+    <audio id="jarvis-voice" autoplay></audio>
+  </div>
+  <div class="right">
+    <div><strong>Debug log</strong></div>
+    <div id="debug" class="log"></div>
+    <div style="margin-top:12px;"><strong>Ultime azioni</strong></div>
+    <div id="actions" class="log"></div>
+  </div>
+</main>
+
+<canvas id="visualizer"></canvas>
 
 <script>
-let mediaRecorder, audioChunks=[], audioPlayer=document.getElementById('jarvis-voice');
+// Recorder that captures raw audio via WebAudio and sends WAV 16k mono PCM16 to server
+let audioContext = null;
+let input = null;
+let processor = null;
+let recording = false;
+let leftChannel = [];
+let recLength = 0;
+let sampleRate = 48000; // will be replaced by audioContext.sampleRate
+let statusEl = document.getElementById('status');
+let transcriptEl = document.getElementById('transcript');
+let gptEl = document.getElementById('gpt');
+let debugEl = document.getElementById('debug');
+let actionsEl = document.getElementById('actions');
+let audioPlayer = document.getElementById('jarvis-voice');
 
-document.getElementById("start-btn").addEventListener("click", async ()=>{
-    try{
-        const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.ondataavailable = e => {
-            if(e.data.size>0) sendAudioChunk(e.data);
-        };
-        mediaRecorder.start(500); // chunk ogni 500ms
-        document.getElementById("status").innerText="🎧 Ascolto attivo...";
-    }catch(e){alert("Errore microfono: "+e.message);}
-});
+function logDebug(msg){ debugEl.innerText = `[${new Date().toLocaleTimeString()}] ${msg}\n` + debugEl.innerText; }
+function logAction(msg){ actionsEl.innerText = `[${new Date().toLocaleTimeString()}] ${msg}\n` + actionsEl.innerText; }
 
-async function sendAudioChunk(blob){
-    const arrayBuffer=await blob.arrayBuffer();
-    const base64Chunk=btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-    const resp=await fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({audio_base64:base64Chunk})});
-    const data=await resp.json();
-    if(data.audio_base64){
-        const audioBlob=base64ToBlob(data.audio_base64,"audio/mp3");
-        audioPlayer.src=URL.createObjectURL(audioBlob);
+async function startRecording(){
+  if (recording) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    sampleRate = audioContext.sampleRate;
+    input = audioContext.createMediaStreamSource(stream);
+    // buffer size 4096 is safe; you can adjust to 2048/4096
+    processor = audioContext.createScriptProcessor(4096, 1, 1);
+    processor.onaudioprocess = function(e){
+      if (!recording) return;
+      const data = e.inputBuffer.getChannelData(0);
+      leftChannel.push(new Float32Array(data));
+      recLength += data.length;
+    };
+    input.connect(processor);
+    processor.connect(audioContext.destination);
+    recording = true;
+    statusEl.innerText = 'Stato: ascolto attivo';
+    logAction('Registrazione avviata (raw WebAudio)');
+  } catch (err) {
+    alert('Errore microfono: ' + err.message);
+    logDebug('Errore microfono: ' + err.message);
+  }
+}
+
+function stopRecordingAndSend(){
+  if (!recording) return;
+  recording = false;
+  statusEl.innerText = 'Stato: inattivo';
+  // disconnect
+  try { processor.disconnect(); input.disconnect(); } catch(e){}
+  // build WAV 16k mono
+  const wavBuffer = exportWAV(leftChannel, recLength, sampleRate, 16000);
+  // reset buffers
+  leftChannel = []; recLength = 0;
+  // convert to base64
+  const base64 = arrayBufferToBase64(wavBuffer);
+  sendWavBase64(base64);
+  logAction('Registrazione stoppata e invio WAV');
+}
+
+function exportWAV(chunks, recLen, inSampleRate, outSampleRate){
+  // merge
+  let buffer = new Float32Array(recLen);
+  let offset = 0;
+  for (let i=0;i<chunks.length;i++){
+    buffer.set(chunks[i], offset);
+    offset += chunks[i].length;
+  }
+  // resample to outSampleRate (simple linear interpolation)
+  const ratio = inSampleRate / outSampleRate;
+  const newLength = Math.round(buffer.length / ratio);
+  const resampled = new Float32Array(newLength);
+  for (let i=0;i<newLength;i++){
+    const idx = i * ratio;
+    const idx0 = Math.floor(idx);
+    const idx1 = Math.min(Math.ceil(idx), buffer.length-1);
+    const frac = idx - idx0;
+    resampled[i] = buffer[idx0] * (1 - frac) + buffer[idx1] * frac;
+  }
+  // encode PCM16 WAV
+  const bytesPerSample = 2;
+  const blockAlign = 1 * bytesPerSample;
+  const byteRate = outSampleRate * blockAlign;
+  const dataSize = resampled.length * bytesPerSample;
+  const bufferOut = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(bufferOut);
+  /* RIFF identifier */
+  writeString(view, 0, 'RIFF');
+  /* file length */
+  view.setUint32(4, 36 + dataSize, true);
+  /* RIFF type */
+  writeString(view, 8, 'WAVE');
+  /* format chunk identifier */
+  writeString(view, 12, 'fmt ');
+  /* format chunk length */
+  view.setUint32(16, 16, true);
+  /* sample format (raw) */
+  view.setUint16(20, 1, true);
+  /* channel count */
+  view.setUint16(22, 1, true);
+  /* sample rate */
+  view.setUint32(24, outSampleRate, true);
+  /* byte rate (sampleRate * blockAlign) */
+  view.setUint32(28, byteRate, true);
+  /* block align (channelCount * bytesPerSample) */
+  view.setUint16(32, blockAlign, true);
+  /* bits per sample */
+  view.setUint16(34, 16, true);
+  /* data chunk identifier */
+  writeString(view, 36, 'data');
+  /* data chunk length */
+  view.setUint32(40, dataSize, true);
+  // PCM samples
+  let offsetOut = 44;
+  for (let i = 0; i < resampled.length; i++, offsetOut += 2){
+    let s = Math.max(-1, Math.min(1, resampled[i]));
+    view.setInt16(offsetOut, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+  return bufferOut;
+}
+
+function writeString(view, offset, string){
+  for (let i = 0; i < string.length; i++){
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
+}
+
+function arrayBufferToBase64(buffer){
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i=0;i<bytes.length;i+=chunkSize){
+    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i+chunkSize)));
+  }
+  return btoa(binary);
+}
+
+async function sendWavBase64(base64){
+  try {
+    logDebug('Invio WAV (base64) al server, dimensione ~' + Math.round(base64.length/1024) + ' KB');
+    const resp = await fetch('/ask', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ wav_base64: base64 })
+    });
+    const data = await resp.json();
+    if (resp.ok){
+      if (data.text) transcriptEl.innerText = data.text;
+      if (data.gpt) gptEl.innerText = data.gpt;
+      if (data.audio_base64){
+        const audioBlob = base64ToBlob(data.audio_base64, 'audio/mp3');
+        audioPlayer.src = URL.createObjectURL(audioBlob);
+        logAction('Riproduzione risposta');
+      }
+    } else {
+      logDebug('Errore server: ' + JSON.stringify(data));
     }
+  } catch (err){
+    logDebug('Errore fetch /ask: ' + err.message);
+  }
 }
 
-function base64ToBlob(base64,type="audio/mpeg"){
-    const binary=atob(base64);
-    const array=[];
-    for(let i=0;i<binary.length;i++) array.push(binary.charCodeAt(i));
-    return new Blob([new Uint8Array(array)],{type});
+function base64ToBlob(base64, type='audio/mpeg'){
+  const binary = atob(base64);
+  const len = binary.length;
+  const arr = new Uint8Array(len);
+  for (let i=0;i<len;i++) arr[i] = binary.charCodeAt(i);
+  return new Blob([arr], { type });
 }
+
+document.getElementById('start-btn').addEventListener('click', ()=> startRecording());
+document.getElementById('stop-btn').addEventListener('click', ()=> stopRecordingAndSend());
+
+// Visualizer background
+const canvas = document.getElementById('visualizer');
+const ctx = canvas.getContext('2d');
+function resizeCanvas(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+function drawPulse(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const t = Date.now() * 0.003;
+  for (let i=0;i<120;i++){
+    const x = Math.sin(i*0.12 + t) * 220 + canvas.width/2;
+    const y = i*4;
+    ctx.fillStyle = `hsl(${(i*3 + t)%360}, 70%, 45%)`;
+    ctx.fillRect(x, y, 2, 2);
+  }
+  requestAnimationFrame(drawPulse);
+}
+drawPulse();
 </script>
 </body>
 </html>
