@@ -2,323 +2,215 @@
 <html lang="it">
 <head>
   <meta charset="utf-8" />
-  <title>Jarvis - WebSocket streaming</title>
+  <title>Jarvis Realtime</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body { font-family: Segoe UI, Tahoma, sans-serif; background: linear-gradient(#0f1117,#1c1f2a); color:#c9d1d9; margin:0; height:100vh; overflow:hidden }
-    header { display:flex; justify-content:space-between; padding:12px 16px; align-items:center }
-    h1 { color:#58a6ff; margin:0; font-size:1.1rem }
-    .controls { display:flex; gap:10px; align-items:center }
-    button { background:#238636; border:none; color:white; padding:8px 12px; border-radius:8px; cursor:pointer }
-    main { display:flex; gap:14px; padding:12px; height:calc(100vh - 60px); box-sizing:border-box }
-    .left { flex:1; background:rgba(255,255,255,0.02); border-radius:10px; padding:12px; overflow:auto }
-    .right { width:340px; background:rgba(255,255,255,0.02); border-radius:10px; padding:12px; overflow:auto }
-    .log { font-family:monospace; font-size:13px; white-space:pre-wrap }
-    audio { width:100%; margin-top:8px; border-radius:8px }
-    #mic { width:54px; height:54px; border-radius:50%; background:#222; display:flex; align-items:center; justify-content:center }
-    #mic.on { box-shadow:0 0 18px rgba(126,252,141,0.4) }
+    :root {
+      --bg: #0b0f14;
+      --panel: #121826;
+      --text: #c9d1d9;
+      --accent: #2ea043;
+      --muted: #7d8590;
+      --border: #1f2937;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font-family: Inter, system-ui, sans-serif; }
+    header { padding:20px; display:flex; align-items:center; justify-content:space-between; background:var(--panel); border-bottom:1px solid var(--border); }
+    h1 { margin:0; font-size:18px; font-weight:600; letter-spacing:0.4px; }
+    .container { max-width:980px; margin:20px auto; padding:0 20px; }
+    .controls { display:flex; gap:12px; align-items:center; }
+    button { background:var(--accent); color:white; border:none; padding:10px 16px; border-radius:10px; cursor:pointer; font-weight:600; }
+    button.secondary { background:#2d333b; }
+    .status { color:var(--muted); font-size:14px; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px; min-height:180px; }
+    .panel h2 { font-size:14px; color:var(--muted); margin:0 0 8px; font-weight:600; letter-spacing:0.2px; }
+    .text { white-space:pre-wrap; line-height:1.45; font-size:15px; }
+    .meter { height:8px; background:#1f2937; border-radius:999px; overflow:hidden; margin-top:8px; }
+    .bar { height:100%; width:0%; background:var(--accent); transition:width 120ms linear; }
+    audio { width:100%; margin-top:16px; }
+
+    /* Jarvis orb */
+    .orb-wrap { display:flex; align-items:center; justify-content:center; padding:20px; }
+    #jarvisOrb {
+      width: 110px; height: 110px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #2ea043, #0b0f14 60%);
+      box-shadow: 0 0 22px rgba(46,160,67,0.7), inset 0 0 12px rgba(46,160,67,0.5);
+      position: relative;
+      animation: idlePulse 2s infinite;
+    }
+    #jarvisOrb::after {
+      content: "";
+      position: absolute; inset: -8px;
+      border-radius: 50%;
+      border: 2px solid rgba(46,160,67,0.25);
+      animation: ring 2.6s infinite;
+    }
+    @keyframes idlePulse {
+      0% { transform: scale(1); box-shadow: 0 0 12px rgba(46,160,67,0.6), inset 0 0 10px rgba(46,160,67,0.4); }
+      50% { transform: scale(1.04); box-shadow: 0 0 28px rgba(46,160,67,1), inset 0 0 16px rgba(46,160,67,0.6); }
+      100% { transform: scale(1); box-shadow: 0 0 12px rgba(46,160,67,0.6), inset 0 0 10px rgba(46,160,67,0.4); }
+    }
+    @keyframes speakingPulse {
+      0% { transform: scale(1); box-shadow: 0 0 18px rgba(46,160,67,0.9), inset 0 0 12px rgba(46,160,67,0.6); }
+      50% { transform: scale(1.22); box-shadow: 0 0 44px rgba(46,160,67,1), inset 0 0 22px rgba(46,160,67,0.8); }
+      100% { transform: scale(1); box-shadow: 0 0 18px rgba(46,160,67,0.9), inset 0 0 12px rgba(46,160,67,0.6); }
+    }
+    @keyframes ring {
+      0% { transform: scale(1); opacity: 0.6; }
+      80% { transform: scale(1.25); opacity: 0.0; }
+      100% { transform: scale(1.25); opacity: 0.0; }
+    }
   </style>
 </head>
 <body>
-<header>
-  <h1>Jarvis (WS)</h1>
-  <div class="controls">
-    <div id="mic" title="microfono">🎙️</div>
-    <button id="btn-start">Avvia</button>
-    <button id="btn-stop">Ferma</button>
+  <header>
+    <h1>Jarvis Realtime</h1>
+    <div class="controls">
+      <button id="btn-connect">Connetti</button>
+      <button id="btn-disconnect" class="secondary">Disconnetti</button>
+      <span id="status" class="status">Idle</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="orb-wrap">
+      <div id="jarvisOrb" title="Jarvis orb"></div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>Tu (trascrizione live)</h2>
+        <div id="youPartial" class="text"></div>
+        <div class="meter"><div id="meterBar" class="bar"></div></div>
+      </div>
+      <div class="panel">
+        <h2>Jarvis (risposta)</h2>
+        <div id="jarvisText" class="text"></div>
+      </div>
+    </div>
+
+    <audio id="remoteAudio" autoplay></audio>
   </div>
-</header>
-<main>
-  <div class="left">
-    <div><strong>Transcript (local)</strong></div>
-    <div id="trans" class="log"></div>
-    <div style="margin-top:8px"><strong>GPT partial / final</strong></div>
-    <div id="gpt" class="log"></div>
-    <audio id="player" autoplay></audio>
-  </div>
-  <div class="right">
-    <div><strong>Debug</strong></div>
-    <div id="debug" class="log"></div>
-    <div style="margin-top:12px"><strong>Actions</strong></div>
-    <div id="act" class="log"></div>
-  </div>
-</main>
 
-<script>
-/*
-Complete client JS:
-- stable WebSocket in `ws`
-- VAD capture via WebAudio, resample to 16000, encode WAV PCM16
-- send with ws.send(...)
-- handle server messages: transcript, partial_text, audio_chunk, done, error
-- queue audio chunks and play immediately without re-recording (blocked while playing)
-- robust logging and safety checks
-*/
+  <script>
+    const statusEl = document.getElementById('status');
+    const youPartialEl = document.getElementById('youPartial');
+    const jarvisTextEl = document.getElementById('jarvisText');
+    const remoteAudio = document.getElementById('remoteAudio');
+    const meterBar = document.getElementById('meterBar');
+    const orb = document.getElementById('jarvisOrb');
 
-const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws';
-let ws = null;
+    let pc, serverDC, micStream, meterInterval;
 
-const btnStart = document.getElementById('btn-start');
-const btnStop = document.getElementById('btn-stop');
-const transEl = document.getElementById('trans');
-const gptEl = document.getElementById('gpt');
-const debugEl = document.getElementById('debug');
-const actEl = document.getElementById('act');
-const micEl = document.getElementById('mic');
-const player = document.getElementById('player');
+    function setStatus(s) { statusEl.textContent = s; }
+    function appendJarvis(text) { jarvisTextEl.textContent += text; }
 
-let audioContext = null;
-let sourceNode = null;
-let processor = null;
-let stream = null;
-
-let recording = false;
-let buffer = [];
-let bufferLen = 0;
-let sampleRate = 48000;
-const OUT_RATE = 16000;
-
-const SILENCE_DB = -50;     // threshold
-const SILENCE_MS = 700;     // end-of-speech timeout
-let voiceActive = false;
-let silenceTimer = null;
-let blocked = false;        // block capturing while sending / playing
-
-// audio queue for progressive chunks
-const audioQueue = [];
-
-// utility logs
-function logDebug(s){ debugEl.innerText = `[${new Date().toLocaleTimeString()}] ${s}\n` + debugEl.innerText; }
-function logAct(s){ actEl.innerText = `[${new Date().toLocaleTimeString()}] ${s}\n` + actEl.innerText; }
-
-function enableMicUI(v){ micEl.classList.toggle('on', v); }
-
-// RMS to dB
-function rmsToDb(rms){ const min=1e-8; return 20*Math.log10(Math.max(rms,min)); }
-
-// WebSocket connect
-function wsConnect(){
-  if(ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-  logDebug('Connecting WebSocket...');
-  ws = new WebSocket(WS_URL);
-
-  ws.onopen = () => {
-    logDebug('WS connected');
-    try { ws.send(JSON.stringify({type:'start_session', session_id:'matteo'})); }
-    catch(e){ logDebug('WS send start_session failed: '+e); }
-  };
-
-  ws.onmessage = (ev) => {
-    try {
-      const msg = JSON.parse(ev.data);
-      handleServerMsg(msg);
-    } catch(e) {
-      logDebug('ws parse err: '+ e);
+    function startMeter(stream) {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      meterInterval = setInterval(() => {
+        analyser.getByteFrequencyData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) sum += data[i];
+        const avg = sum / data.length;
+        const pct = Math.min(100, Math.max(0, (avg / 128) * 100));
+        meterBar.style.width = pct.toFixed(0) + "%";
+      }, 120);
     }
-  };
 
-  ws.onclose = (ev) => {
-    logDebug('WS closed code=' + (ev.code || 'n/a'));
-    ws = null;
-  };
+    // Orb reacts to audio playback
+    remoteAudio.onplay = () => { orb.style.animation = "speakingPulse 1s infinite"; };
+    remoteAudio.onpause = () => { orb.style.animation = "idlePulse 2s infinite"; };
+    remoteAudio.onended = () => { orb.style.animation = "idlePulse 2s infinite"; };
 
-  ws.onerror = (e) => { logDebug('WS error'); };
-}
+    async function connect() {
+      try {
+        setStatus('Connessione...');
+        jarvisTextEl.textContent = "";
+        youPartialEl.textContent = "";
 
-// handle incoming server messages
-function handleServerMsg(msg){
-  if(!msg || !msg.type) return;
-  if(msg.type === 'info'){ logDebug('info: '+msg.message); }
-  else if(msg.type === 'transcript'){ transEl.innerText = msg.text; }
-  else if(msg.type === 'partial_text'){ gptEl.innerText += msg.delta; }
-  else if(msg.type === 'audio_chunk'){
-    if(msg.audio_b64){
-      enqueueAudioChunk(msg.audio_b64);
-    }
-  }
-  else if(msg.type === 'done'){ gptEl.innerText = msg.full; }
-  else if(msg.type === 'error'){ logDebug('server error: '+msg.message); }
-}
+        pc = new RTCPeerConnection();
 
-// enqueue and play audio chunks sequentially
-function enqueueAudioChunk(b64){
-  audioQueue.push(b64);
-  if(!player.src || player.ended || player.paused){
-    playNextChunk();
-  } else {
-    // it will be played when current ends because of ended handler
-  }
-}
+        // receive server TTS track
+        pc.ontrack = (ev) => {
+          const [stream] = ev.streams;
+          remoteAudio.srcObject = stream;
+          setStatus('Audio in arrivo...');
+        };
 
-// play next audio chunk from queue
-function playNextChunk(){
-  if(audioQueue.length === 0){ blocked = false; logAct('no queued audio, listening re-enabled'); return; }
-  const b64 = audioQueue.shift();
-  const bin = atob(b64);
-  const len = bin.length;
-  const arr = new Uint8Array(len);
-  for(let i=0;i<len;i++) arr[i] = bin.charCodeAt(i);
-  const blob = new Blob([arr.buffer], {type: 'audio/mpeg'});
-  const url = URL.createObjectURL(blob);
-  blocked = true;
-  player.src = url;
-  player.play().catch(e => { logDebug('play err: '+e); blocked = false; });
-}
+        // server datachannel
+        pc.ondatachannel = (ev) => {
+          if (ev.channel.label === "server") {
+            serverDC = ev.channel;
+            serverDC.onmessage = (msgEv) => {
+              try {
+                const data = JSON.parse(msgEv.data);
+                if (data.type === "stt_partial") {
+                  youPartialEl.textContent = data.text;
+                } else if (data.type === "stt_final") {
+                  const cur = youPartialEl.textContent;
+                  youPartialEl.textContent = cur ? (cur + "\n" + data.text) : data.text;
+                } else if (data.type === "llm_delta") {
+                  appendJarvis(data.text);
+                } else if (data.type === "error") {
+                  appendJarvis("\n[Errore] " + data.message + "\n");
+                }
+              } catch (e) {
+                console.warn("DC parse error", e);
+              }
+            };
+          }
+        };
 
-// when playback ends, play next or re-enable listening
-player.addEventListener('ended', ()=>{
-  // small delay to avoid capturing TTS
-  setTimeout(()=> {
-    if(audioQueue.length>0) playNextChunk();
-    else { blocked = false; logAct('playback ended, listening re-enabled'); }
-  }, 220);
-});
+        // optional client channel for future commands
+        const clientDC = pc.createDataChannel("client");
 
-// capture control
-btnStart.onclick = ()=> startCapture();
-btnStop.onclick = ()=> stopCapture();
-
-async function startCapture(){
-  if(recording) return;
-  if(!ws) wsConnect();
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({audio:true});
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    sampleRate = audioContext.sampleRate || 48000;
-    sourceNode = audioContext.createMediaStreamSource(stream);
-    processor = audioContext.createScriptProcessor(4096,1,1);
-    processor.onaudioprocess = onAudio;
-    sourceNode.connect(processor);
-    processor.connect(audioContext.destination);
-    recording = true;
-    logAct('started capture');
-    enableMicUI(true);
-  } catch(e) {
-    logDebug('getUserMedia err: '+ e);
-  }
-}
-
-function stopCapture(){
-  if(!recording) return;
-  try {
-    processor.disconnect();
-    sourceNode.disconnect();
-    stream.getTracks().forEach(t => t.stop());
-    audioContext.close();
-  } catch(e){}
-  recording = false;
-  buffer = []; bufferLen = 0;
-  enableMicUI(false);
-  logAct('stopped capture');
-}
-
-// audio processing and VAD
-function onAudio(e){
-  if(!recording || blocked) return;
-  const input = e.inputBuffer.getChannelData(0);
-  let sum = 0;
-  for(let i=0;i<input.length;i++) sum += input[i]*input[i];
-  const rms = Math.sqrt(sum/input.length);
-  const db = rmsToDb(rms);
-
-  if(db > SILENCE_DB){
-    // voice present
-    voiceActive = true;
-    lastPiecePush(input);
-    if(silenceTimer){ clearTimeout(silenceTimer); silenceTimer = null; }
-  } else {
-    // silence
-    if(voiceActive && !silenceTimer){
-      silenceTimer = setTimeout(()=> {
-        voiceActive = false; silenceTimer = null;
-        const durationMs = (bufferLen / sampleRate) * 1000;
-        if(durationMs > 60){
-          sendBufferedWav();
-        } else {
-          buffer=[]; bufferLen=0;
+        // mic
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+        });
+        for (const track of micStream.getTracks()) {
+          pc.addTrack(track, micStream);
         }
-      }, SILENCE_MS);
-    } else if(voiceActive){
-      lastPiecePush(input);
+        startMeter(micStream);
+
+        const offer = await pc.createOffer({ offerToReceiveAudio: true });
+        await pc.setLocalDescription(offer);
+
+        const resp = await fetch('/offer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sdp: pc.localDescription.sdp, type: pc.localDescription.type })
+        });
+        const answer = await resp.json();
+        await pc.setRemoteDescription(answer);
+
+        setStatus('Connesso');
+      } catch (err) {
+        setStatus('Errore di connessione');
+        console.error(err);
+      }
     }
-  }
-}
 
-function lastPiecePush(chunk){
-  buffer.push(new Float32Array(chunk));
-  bufferLen += chunk.length;
-}
+    async function disconnect() {
+      try {
+        if (meterInterval) { clearInterval(meterInterval); meterInterval = null; }
+        if (pc) { pc.close(); pc = null; }
+        if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+        setStatus('Disconnesso');
+        orb.style.animation = "idlePulse 2s infinite";
+      } catch (e) {
+        console.error(e);
+      }
+    }
 
-// resample+encode WAV 16-bit PCM little-endian
-function encodeWav(samples, outRate){
-  // merge
-  let total = 0; for(let i=0;i<samples.length;i++) total += samples[i].length;
-  let merged = new Float32Array(total);
-  let off = 0;
-  for(let i=0;i<samples.length;i++){ merged.set(samples[i], off); off += samples[i].length; }
-
-  const ratio = sampleRate / outRate;
-  const newLen = Math.round(merged.length / ratio);
-  const resampled = new Float32Array(newLen);
-  for(let i=0;i<newLen;i++){
-    const idx = i * ratio;
-    const i0 = Math.floor(idx), i1 = Math.min(Math.ceil(idx), merged.length - 1);
-    const frac = idx - i0;
-    resampled[i] = merged[i0] * (1 - frac) + merged[i1] * frac;
-  }
-
-  const bytesPerSample = 2;
-  const dataSize = resampled.length * bytesPerSample;
-  const bufferOut = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(bufferOut);
-
-  function writeStr(o, s){ for(let i=0;i<s.length;i++) view.setUint8(o+i, s.charCodeAt(i)); }
-  writeStr(0,'RIFF'); view.setUint32(4,36+dataSize,true); writeStr(8,'WAVE'); writeStr(12,'fmt ');
-  view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true);
-  view.setUint32(24,outRate,true); view.setUint32(28,outRate * bytesPerSample,true);
-  view.setUint16(32, bytesPerSample, true); view.setUint16(34,16,true); writeStr(36,'data');
-  view.setUint32(40,dataSize,true);
-  let p = 44;
-  for(let i=0;i<resampled.length;i++,p+=2){
-    let s = Math.max(-1, Math.min(1, resampled[i]));
-    view.setInt16(p, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-  }
-  return bufferOut;
-}
-
-function arrayBufferToBase64(buf){
-  const bytes = new Uint8Array(buf);
-  const chunk = 0x8000;
-  let bin = '';
-  for(let i=0;i<bytes.length;i+=chunk) bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i+chunk)));
-  return btoa(bin);
-}
-
-async function sendBufferedWav(){
-  if(!ws || ws.readyState !== WebSocket.OPEN){
-    logDebug('ws not open, dropping audio');
-    buffer=[]; bufferLen=0;
-    return;
-  }
-  blocked = true;
-  logAct('sending buffered audio to server');
-  const wav = encodeWav(buffer, OUT_RATE);
-  buffer = []; bufferLen = 0;
-  const b64 = arrayBufferToBase64(wav);
-  logDebug('🎤 Invio audio al server...');
-  try {
-    ws.send(JSON.stringify({type: "wav", wav_base64: b64}));
-  } catch(e){
-    logDebug('ws.send failed: ' + e);
-    blocked = false;
-  }
-}
-
-// Init on load
-window.addEventListener('load', ()=> {
-  wsConnect();
-  logDebug('Client ready');
-});
-</script>
+    document.getElementById('btn-connect').onclick = connect;
+    document.getElementById('btn-disconnect').onclick = disconnect;
+  </script>
 </body>
 </html>
