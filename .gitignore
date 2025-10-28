@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 *.pyd
 venv/
+env/
 audio/
 logs/
 config.py
