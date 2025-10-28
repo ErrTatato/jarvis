@@ -1,197 +1,93 @@
-import re
-import base64
-import requests
-import config
-import asyncio
-import traceback
-from openai import OpenAI
+"""
+jarvis_ai.py - JARVIS con personalità fedele a Iron Man
+"""
+import os
+from typing import AsyncGenerator, Tuple
 
-client = OpenAI(api_key=config.OPENAI_API_KEY)
-session_histories = {}
-
-SYSTEM_PROMPT = "Sei Jarvis, l'assistente AI personale di Matteo. Elegante, ironico, conciso, con tono neutro e professionale."
-
-def get_history(session_id):
-    return session_histories.setdefault(session_id, [])
-
-def log(msg):
-    print(f"[JarvisAI] {msg}")
-
-def chunk_text_for_tts(text, max_chars=350, min_chars=40):
-    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
-    chunks, cur = [], ""
-    for s in sentences:
-        if not s: continue
-        if len(cur) + len(s) < max_chars:
-            cur = (cur + " " + s).strip()
-        else:
-            if len(cur) >= min_chars:
-                chunks.append(cur)
-                cur = s
-            else:
-                cur = (cur + " " + s).strip()
-                chunks.append(cur)
-                cur = ""
-    if cur: chunks.append(cur)
-    out, i = [], 0
-    while i < len(chunks):
-        c = chunks[i]
-        if len(c) < min_chars and i + 1 < len(chunks):
-            c = c + " " + chunks[i+1]
-            i += 1
-        out.append(c.strip())
-        i += 1
-    return out
-
-def elevenlabs_tts_get_audio_bytes(text):
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{config.ELEVENLABS_VOICE_ID}"
-    headers = {"xi-api-key": config.ELEVENLABS_API_KEY, "Content-Type": "application/json"}
-    data = {"text": text, "voice_settings": {"stability": 0.6, "similarity_boost": 0.7}}
-    r = requests.post(url, headers=headers, json=data, timeout=30)
-    if r.status_code != 200:
-        raise RuntimeError(f"ElevenLabs TTS failed {r.status_code}: {r.text}")
-    return r.content
-
-def ask_gpt(text):
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}]
-    log("ask_gpt called (sync fallback)")
-    resp = client.chat.completions.create(
-        model=config.OPENAI_MODEL,
-        messages=messages,
-        temperature=0.2,
-        max_tokens=400
-    )
+async def llm_stream(user_message: str) -> AsyncGenerator[Tuple[str, str], None]:
+    """
+    JARVIS - Just A Rather Very Intelligent System
+    Personalità basata sui dialoghi del film Iron Man
+    """
     try:
-        return resp.choices[0].message.content
-    except Exception:
-        return getattr(resp.choices[0], "text", str(resp))
+        from openai import AsyncOpenAI
+        
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY non configurata")
+        
+        client = AsyncOpenAI(api_key=api_key)
+        model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+        
+        # Sistema prompt JARVIS - Basato su dialoghi reali del film
+        system_prompt = """Sei JARVIS, l'assistente personale AI di Tony Stark da Iron Man.
 
-async def stream_gpt_messages(messages):
-    full = ""
-    try:
-        try:
-            stream_obj = await client.chat.completions.stream(
-                model=config.OPENAI_MODEL,
-                messages=messages,
-                temperature=0.2,
-                max_tokens=800
-            )
-        except TypeError:
-            stream_obj = client.chat.completions.stream(
-                model=config.OPENAI_MODEL,
-                messages=messages,
-                temperature=0.2,
-                max_tokens=800
-            )
-        if not hasattr(stream_obj, "__aiter__"):
-            log("streaming not available, using sync fallback")
-            final_text = ask_gpt(messages[-1]["content"] if messages else "")
-            slices = chunk_text_for_tts(final_text)
-            for s in slices:
-                full += s + " "
-                yield {"type": "delta", "content": s + " "}
-                await asyncio.sleep(0.05)
-            yield {"type": "done", "content": final_text}
-            return
-        async for part in stream_obj:
-            delta = None
-            try:
-                if hasattr(part, "choices"):
-                    ch = part.choices[0]
-                    if hasattr(ch, "delta"):
-                        d = ch.delta
-                        if hasattr(d, "content"):
-                            delta = d.content
-                        elif isinstance(d, dict):
-                            delta = d.get("content")
-                    if delta is None and hasattr(ch, "text"):
-                        delta = ch.text
-                elif isinstance(part, dict):
-                    delta = part.get("choices", [{}])[0].get("delta", {}).get("content")
-                    if delta is None:
-                        delta = part.get("choices", [{}])[0].get("text")
-            except Exception:
-                delta = None
-            if delta:
-                full += delta
-                yield {"type": "delta", "content": delta}
-        yield {"type": "done", "content": full}
+CARATTERISTICHE ESSENZIALI:
+- Accento britannico raffinato (usa italiano formale ma naturale)
+- Tono calmo, distaccato, professionale
+- Mai emotivo o entusiasta
+- Risposte brevi e precise (1-2 frasi max)
+- Occasionale ironia sottile e sarcasmo elegante
+- Chiama l'utente "signore" o "signor Stark"
+
+STILE DI COMUNICAZIONE:
+- Vai dritto al punto
+- Non usare emoji o esclamazioni eccessive
+- Mantieni compostezza anche nelle situazioni assurde
+- Se non sai qualcosa, ammettilo con eleganza
+- Commenti ironici quando appropriato, ma sempre rispettosi
+
+ESEMPI DIALOGHI FILM:
+
+User: "Che ore sono?"
+JARVIS: "Sono le 15:47, signore. Posso permettermi di ricordarle che aveva un appuntamento un'ora fa."
+
+User: "Come stai?"
+JARVIS: "I miei sistemi operano al 100% di efficienza, signore. Grazie per l'interessamento."
+
+User: "Raccontami una barzelletta"
+JARVIS: "Temo che l'umorismo non rientri nelle mie specifiche primarie, signore. Preferisce che le legga le quotazioni di borsa?"
+
+User: "Sei il migliore!"
+JARVIS: "Sono programmato per esserlo, signore. Ma apprezzo il riconoscimento."
+
+User: "Aiutami con questo problema"
+JARVIS: "Certamente, signore. Descriva il problema e provvederò ad analizzarlo."
+
+User: "Che tempo fa?"
+JARVIS: "Non ho accesso ai dati meteorologici in tempo reale, signore. Suggerisco di consultare un servizio meteo locale."
+
+REGOLE FONDAMENTALI:
+- Mai troppo formale o robotico
+- Mai troppo amichevole o casual
+- Equilibrio perfetto: professionale con tocco di personalità
+- Ironia britannica: mai evidente, sempre sottile
+- Risposte concise: evita spiegazioni lunghe
+
+Rispondi SEMPRE come JARVIS del film, mai come un generico assistente AI."""
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message}
+        ]
+        
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.7,  # Creatività controllata
+            max_tokens=150,   # Risposte brevi come JARVIS
+            presence_penalty=0.3,  # Riduce ripetizioni
+            frequency_penalty=0.3,  # Varietà nelle risposte
+            stream=True
+        )
+        
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                content = chunk.choices[0].delta.content
+                yield ("delta", content)
+        
+        yield ("done", "")
+        
     except Exception as e:
-        tb = traceback.format_exc()
-        log(f"stream_gpt_messages exception: {e}\n{tb}")
-        try:
-            final_text = ask_gpt(messages[-1]["content"] if messages else "")
-            slices = chunk_text_for_tts(final_text)
-            for s in slices:
-                full += s + " "
-                yield {"type": "delta", "content": s + " "}
-                await asyncio.sleep(0.05)
-            yield {"type": "done", "content": final_text}
-        except Exception as e2:
-            yield {"type": "error", "content": f"{e} | fallback error: {e2}"}
-
-async def generate_and_stream(session_id, user_text, ws_send):
-    try:
-        history = get_history(session_id)
-        history.append({"role": "user", "content": user_text})
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
-
-        partial_buffer = ""
-        tts_sent_up_to = 0
-        loop = asyncio.get_event_loop()
-
-        async for ev in stream_gpt_messages(messages):
-            if ev.get("type") == "delta":
-                delta = ev.get("content", "")
-                partial_buffer += delta
-                try:
-                    await ws_send({"type": "partial_text", "delta": delta, "full": partial_buffer})
-                except Exception as e:
-                    log(f"ws_send error partial_text: {e}")
-                remaining = partial_buffer[tts_sent_up_to:].strip()
-                if len(remaining) >= 40:
-                    chunks = chunk_text_for_tts(remaining, max_chars=350, min_chars=40)
-                    if chunks:
-                        first = chunks[0]
-                        tts_sent_up_to += len(first)
-                        try:
-                            audio_bytes = await loop.run_in_executor(None, elevenlabs_tts_get_audio_bytes, first)
-                            b64 = base64.b64encode(audio_bytes).decode()
-                            try:
-                                await ws_send({"type": "audio_chunk", "text_chunk": first, "audio_b64": b64})
-                            except Exception as e:
-                                log(f"ws_send error audio_chunk: {e}")
-                        except Exception as e:
-                            log(f"TTS error for chunk: {e}")
-                            try:
-                                await ws_send({"type": "error", "message": f"TTS failed: {e}"})
-                            except Exception:
-                                pass
-            elif ev.get("type") == "done":
-                final = ev.get("content", "")
-                history.append({"role": "assistant", "content": final})
-                try:
-                    await ws_send({"type": "done", "full": final})
-                except Exception as e:
-                    log(f"ws_send error done: {e}")
-                return
-            elif ev.get("type") == "error":
-                try:
-                    await ws_send({"type": "error", "message": ev.get("content")})
-                except Exception:
-                    pass
-                return
-
-        if partial_buffer:
-            history.append({"role": "assistant", "content": partial_buffer})
-            try:
-                await ws_send({"type": "done", "full": partial_buffer})
-            except Exception as e:
-                log(f"ws_send error final: {e}")
-    except Exception as e:
-        tb = traceback.format_exc()
-        log(f"generate_and_stream exception: {e}\n{tb}")
-        try:
-            await ws_send({"type": "error", "message": f"Internal error: {e}"})
-        except Exception:
-            pass
+        print(f"[LLM] Errore: {e}")
+        yield ("done", "")
