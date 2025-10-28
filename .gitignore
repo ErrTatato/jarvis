@@ -7,10 +7,10 @@ venv/
 audio/
 logs/
 config.py
-OPENAI_API_KEY = "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"
+
 OPENAI_MODEL = "gpt-4o-mini"
 # Picovoice Porcupine Wake Word
-PICOVOICE_ACCESS_KEY="Ni6U5+Lsrs8Yt01FweUGsl8H6kmSs8L9WvzSYEYt+064fzUPWdfjDg=="
+
 
 TARGET_SR = 16000
 CHUNK_MS = 200
