@@ -1,80 +1,47 @@
-"""
-speak_edge.py - TTS ottimizzato per JARVIS Iron Man
-"""
+"""core/speak_edge.py - TTS Edge con fix async"""
 import asyncio
+import os
+import tempfile
+import base64
 import edge_tts
+from pathlib import Path
 
-async def speak_edge_async(text: str, voice: str = "it-IT-DiegoNeural", rate: str = "+0%", pitch: str = "-12Hz"):
-    """
-    TTS ottimizzato per JARVIS.
-    
-    Parametri JARVIS:
-    - rate="+0%" - Velocità normale (non affrettata, come nel film)
-    - pitch="-12Hz" - Voce molto profonda e autorevole
-    
-    Voci alternative:
-    - it-IT-DiegoNeural - Maschio professionale (DEFAULT)
-    - it-IT-BenignoNeural - Maschio maturo (più anziano)
-    """
-    communicate = edge_tts.Communicate(
-        text, 
-        voice,
-        rate=rate,   # Velocità
-        pitch=pitch  # Profondità voce
-    )
-    
-    audio_data = b""
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            audio_data += chunk["data"]
-    
-    return audio_data
-
-def speak_edge(text: str, output_file: str = None, return_bytes: bool = False, voice: str = None):
-    """
-    Wrapper sincrono per Edge TTS JARVIS.
-    """
+async def generate_tts_async(text: str, voice: str = "it-IT-DiegoNeural", rate: str = "+0%", pitch: str = "-12Hz"):
+    """Genera TTS async"""
     try:
-        import os
+        output_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=False).name
         
-        # Parametri da config
-        if voice is None:
-            voice = os.environ.get("EDGE_TTS_VOICE", "it-IT-DiegoNeural")
+        # Genera audio
+        communicate = edge_tts.Communicate(text, voice=voice, rate=rate, pitch=pitch)
+        await communicate.save(output_file)
         
-        # Parametri JARVIS ottimizzati
-        rate = os.environ.get("EDGE_TTS_RATE", "+0%")     # Normale
-        pitch = os.environ.get("EDGE_TTS_PITCH", "-12Hz") # Molto profondo
-        
-        print(f"[TTS] JARVIS - voce '{voice}' rate={rate} pitch={pitch}")
-        
-        # Event loop
+        return output_file
+    except Exception as e:
+        print(f"[TTS] Errore: {e}")
+        return None
+
+
+def speak_edge_sync(text: str, voice: str = "it-IT-DiegoNeural", rate: str = "+0%", pitch: str = "-12Hz"):
+    """Wrapper sync per TTS"""
+    try:
+        # Crea nuovo event loop se necessario
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+            loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-        
-        # Genera
-        audio_bytes = loop.run_until_complete(speak_edge_async(text, voice, rate, pitch))
-        
-        print(f"[TTS] ✅ {len(audio_bytes)} bytes")
-        
-        if return_bytes:
-            return audio_bytes
-        
-        if output_file:
-            from pathlib import Path
-            output_path = Path(output_file)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_path, 'wb') as f:
-                f.write(audio_bytes)
-            print(f"[TTS] Salvato: {output_path}")
-        
-        return None
-        
+            return loop.run_until_complete(generate_tts_async(text, voice, rate, pitch))
+        else:
+            # Se loop è già in esecuzione, crea task in thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, generate_tts_async(text, voice, rate, pitch))
+                return future.result()
     except Exception as e:
-        print(f"[TTS] ❌ Errore: {e}")
-        raise
+        print(f"[TTS] Errore sync: {e}")
+        return None
+
+
+async def speak_edge(text: str):
+    """Main function - usa la versione corretta"""
+    return speak_edge_sync(text)

@@ -1,48 +1,162 @@
 # ============================================================================
-# JARVIS - Requirements File
+# JARVIS - Python Requirements
 # ============================================================================
 # Installazione: pip install -r requirements.txt
+# Python 3.9+
 # ============================================================================
 
-# Core OpenAI
+
+# ============================================================================
+# CORE - LLM & AI (ESSENZIALE)
+# ============================================================================
+
 openai>=1.0.0
 
-# Web Server & WebRTC
+
+# ============================================================================
+# WEB SERVER & WEBRTC (ESSENZIALE)
+# ============================================================================
+
 aiohttp>=3.8.0
+aiohttp-cors>=0.7.0
+aiofiles>=23.0.0
 aiortc>=1.5.0
 av>=10.0.0
 
-# Audio Processing
+
+# ============================================================================
+# AUDIO PROCESSING (ESSENZIALE)
+# ============================================================================
+
 pyaudio>=0.2.13
 pydub>=0.25.1
 numpy>=1.24.0
+scipy>=1.11.0
 
-# Wake Word Detection (Opzionale - richiede account Picovoice)
-pvporcupine>=2.2.0
 
-# HTTP Requests
+# ============================================================================
+# TEXT-TO-SPEECH (ESSENZIALE)
+# ============================================================================
+
+edge-tts>=6.1.0
+
+
+# ============================================================================
+# HTTP & NETWORK (ESSENZIALE)
+# ============================================================================
+
 requests>=2.31.0
-
-# Environment Variables
-python-dotenv
+python-multipart>=0.0.6
 
 
 # ============================================================================
-# OPZIONALI - Decommenta se necessario
+# CONFIGURATION & ENV (ESSENZIALE)
 # ============================================================================
 
-# Google APIs (per Calendar, Docs, Sheets)
+python-dotenv>=1.0.0
+
+
+# ============================================================================
+# UTILITY & LOGGING
+# ============================================================================
+
+colorama>=0.4.6
+tqdm>=4.66.0
+
+
+# ============================================================================
+# OPZIONALI - ATTIVA SE NECESSARIO
+# ============================================================================
+
+# Wake Word Detection (Picovoice Porcupine)
+# Richiede: account gratuito su picovoice.ai
+# pvporcupine>=2.2.0
+
+
+# ============================================================================
+# OPZIONALI - SERVIZI FUTURI
+# ============================================================================
+
+# Google APIs (Calendar, Docs, Gmail, Sheets)
 # google-api-python-client>=2.100.0
 # google-auth-httplib2>=0.1.1
 # google-auth-oauthlib>=1.1.0
 
-# SSH per Kali Linux VM
+
+# ============================================================================
+# OPZIONALI - DOMOTICA & AUTOMAZIONE
+# ============================================================================
+
+# SSH per Remote Control (Kali Linux VM, Raspberry Pi, etc.)
 # paramiko>=3.3.0
 
-# Android Automation
-# uiautomator>=1.0.2
+# Android Device Control
+# adb>=1.3.0
 
-# NLP per Intent Recognition
+
+# ============================================================================
+# OPZIONALI - NLP AVANZATO (Lento - usa solo se necessario)
+# ============================================================================
+
+# Intent Recognition & NLP
 # nltk>=3.8.0
+# scikit-learn>=1.3.2
+# spacy>=3.7.0
+
+
+# ============================================================================
+# OPZIONALI - MACHINE LEARNING (GPU-heavy)
+# ============================================================================
+
+# PyTorch (versione CPU)
+# torch>=2.1.0
+# torchvision>=0.16.0
+
+# TensorFlow (alternativa a PyTorch)
 # tensorflow>=2.14.0
-# scikit-learn>=1.3.0
+
+
+# ============================================================================
+# OPZIONALI - DATABASE & STORAGE
+# ============================================================================
+
+# SQLite (built-in in Python)
+
+# PostgreSQL Driver
+# psycopg2>=2.9.0
+
+# MongoDB Driver
+# pymongo>=4.6.0
+
+
+# ============================================================================
+# OPZIONALI - TESTING & DEVELOPMENT
+# ============================================================================
+
+# pytest>=7.4.0
+# pytest-asyncio>=0.21.0
+# black>=23.0.0
+# flake8>=6.1.0
+
+
+# ============================================================================
+# NOTE IMPORTANTI
+# ============================================================================
+# 
+# 1. INSTALLAZIONE RAPIDA (solo essenziale):
+#    pip install -r requirements.txt
+#
+# 2. PER VOSK (DEPRECATED - non consigliato):
+#    pip install vosk
+#    Alternativa moderna: Whisper (già in openai)
+#
+# 3. AUDIO IN WINDOWS:
+#    Se pip install pyaudio fallisce:
+#    - Scarica da: https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio
+#    - pip install PyAudio-X.X.X-cpXX-cpXX-winXX.whl
+#
+# 4. GPU ACCELERATION (CUDA):
+#    Per NVIDIA GPU, installa CUDA 12.1 e:
+#    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+#
+# ============================================================================

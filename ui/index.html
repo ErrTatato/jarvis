@@ -2,539 +2,364 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>J.A.R.V.I.S.</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J.A.R.V.I.S - Orb</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; }
+        body { background: #000; display: flex; justify-content: center; align-items: center; font-family: 'Courier New', monospace; }
         
-        body {
-            background: #000;
-            overflow: hidden;
-            font-family: 'Courier New', monospace;
-            color: #00d4ff;
-            -webkit-user-select: none;
-            user-select: none;
-        }
+        #canvas { display: block; }
         
-        /* CANVAS PARTICLES */
-        canvas {
+        .ui {
             position: fixed;
-            top: 0;
-            left: 0;
             width: 100%;
             height: 100%;
-            pointer-events: none;
-        }
-        
-        /* ORB CONTAINER */
-        .orb-container {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 300px;
-            height: 300px;
-            cursor: pointer;
-        }
-        
-        /* ORB */
-        .orb {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 200px;
-            height: 200px;
-            margin: -100px 0 0 -100px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, #4da6ff, #0066cc, #003366);
-            box-shadow: 
-                0 0 60px rgba(0, 150, 255, 0.8),
-                0 0 120px rgba(0, 150, 255, 0.5),
-                inset 0 0 60px rgba(0, 150, 255, 0.3);
-            animation: idle-pulse 3s ease-in-out infinite;
-            transition: all 0.3s ease;
-        }
-        
-        .orb:active {
-            transform: scale(0.95);
-        }
-        
-        /* ANIMATIONS */
-        @keyframes idle-pulse {
-            0%, 100% { 
-                transform: scale(1); 
-                box-shadow: 0 0 60px rgba(0, 150, 255, 0.8), 0 0 120px rgba(0, 150, 255, 0.5); 
-            }
-            50% { 
-                transform: scale(1.05); 
-                box-shadow: 0 0 80px rgba(0, 150, 255, 1), 0 0 160px rgba(0, 150, 255, 0.7); 
-            }
-        }
-        
-        @keyframes listening-pulse {
-            0%, 100% { 
-                transform: scale(1.1); 
-                box-shadow: 0 0 100px rgba(255, 200, 0, 1), 0 0 200px rgba(255, 200, 0, 0.8); 
-            }
-            50% { 
-                transform: scale(1.2); 
-                box-shadow: 0 0 120px rgba(255, 200, 0, 1), 0 0 240px rgba(255, 200, 0, 0.9); 
-            }
-        }
-        
-        @keyframes speaking-pulse {
-            0%, 100% { 
-                transform: scale(1.15); 
-                box-shadow: 0 0 120px rgba(0, 255, 150, 1), 0 0 240px rgba(0, 255, 150, 0.8); 
-            }
-            50% { 
-                transform: scale(1.25); 
-                box-shadow: 0 0 150px rgba(0, 255, 150, 1), 0 0 300px rgba(0, 255, 150, 0.9); 
-            }
-        }
-        
-        .orb.listening {
-            background: radial-gradient(circle at 30% 30%, #ffeb3b, #ffc107, #ff9800);
-            animation: listening-pulse 1s ease-in-out infinite;
-        }
-        
-        .orb.speaking {
-            background: radial-gradient(circle at 30% 30%, #00ff88, #00cc66, #009944);
-            animation: speaking-pulse 0.8s ease-in-out infinite;
-        }
-        
-        .orb.offline {
-            background: radial-gradient(circle at 30% 30%, #666, #444, #222);
-            box-shadow: 0 0 30px rgba(100, 100, 100, 0.5);
-            animation: none;
-        }
-        
-        /* STATUS TEXT */
-        .status-text {
-            position: fixed;
-            bottom: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 13px;
-            opacity: 0.8;
-            text-align: center;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            text-shadow: 0 0 10px rgba(0, 212, 255, 0.8);
-        }
-        
-        /* MODE TOGGLE */
-        .mode-toggle {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
+            top: 0;
+            left: 0;
             display: flex;
-            gap: 15px;
-            background: rgba(0, 30, 60, 0.8);
-            padding: 12px 20px;
-            border-radius: 25px;
-            border: 1px solid rgba(0, 212, 255, 0.3);
-            backdrop-filter: blur(10px);
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 40px 20px;
+            pointer-events: none;
+            z-index: 10;
         }
         
-        .mode-btn {
-            background: rgba(0, 100, 200, 0.3);
-            border: 1px solid rgba(0, 212, 255, 0.5);
-            color: #00d4ff;
-            padding: 8px 16px;
-            border-radius: 15px;
-            cursor: pointer;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: all 0.3s;
-            font-family: 'Courier New', monospace;
-        }
-        
-        .mode-btn.active {
-            background: rgba(0, 212, 255, 0.8);
-            color: #000;
-            box-shadow: 0 0 20px rgba(0, 212, 255, 0.8);
-        }
-        
-        .mode-btn:active {
-            transform: scale(0.95);
-        }
-        
-        /* HINT TEXT */
-        .hint {
-            position: fixed;
-            top: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 11px;
-            opacity: 0.5;
+        .status {
+            color: #64b5f6;
+            font-size: 12px;
             text-align: center;
             letter-spacing: 2px;
+            opacity: 0.8;
+        }
+        
+        .status.listening { color: #ffa726; }
+        .status.speaking { color: #66bb6a; }
+        
+        .text-box {
+            background: rgba(10, 20, 40, 0.9);
+            border: 2px solid rgba(100, 181, 246, 0.4);
+            border-radius: 10px;
+            padding: 20px 40px;
+            max-width: 700px;
+            text-align: center;
+            color: rgba(100, 181, 246, 0.95);
+            font-size: 14px;
+            line-height: 1.6;
+            backdrop-filter: blur(10px);
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .text-box.speaking { 
+            color: rgba(102, 187, 106, 0.95);
+            border-color: rgba(102, 187, 106, 0.4);
+        }
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            pointer-events: auto;
+        }
+        
+        .talk-btn {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, rgba(100, 181, 246, 0.5), rgba(33, 150, 243, 0.3), rgba(13, 71, 161, 0.2));
+            border: 3px solid rgba(100, 181, 246, 0.6);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: rgba(100, 181, 246, 0.8);
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 30px rgba(100, 181, 246, 0.4);
+        }
+        
+        .talk-btn:hover {
+            box-shadow: 0 0 50px rgba(100, 181, 246, 0.6);
+            transform: scale(1.05);
+        }
+        
+        .talk-btn:active {
+            background: radial-gradient(circle at 30% 30%, rgba(255, 167, 38, 0.6), rgba(255, 152, 0, 0.4), rgba(230, 81, 0, 0.2));
+            border-color: rgba(255, 167, 38, 0.8);
+            box-shadow: 0 0 60px rgba(255, 167, 38, 0.8);
+            transform: scale(0.98);
+        }
+        
+        .hint {
+            color: rgba(100, 181, 246, 0.5);
+            font-size: 11px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <canvas id="particles"></canvas>
+    <canvas id="canvas"></canvas>
     
-    <div class="hint" id="hint">HOLD ORB TO SPEAK</div>
-    
-    <div class="orb-container" id="orbContainer">
-        <div class="orb offline" id="orb"></div>
-    </div>
-    
-    <div class="status-text" id="status">OFFLINE</div>
-    
-    <div class="mode-toggle">
-        <button class="mode-btn active" id="btnHold">🎤 HOLD</button>
-        <button class="mode-btn" id="btnVoice">🎙️ VOICE</button>
+    <div class="ui">
+        <div class="status" id="status">JARVIS READY</div>
+        
+        <div></div>
+        
+        <div class="text-box" id="textBox">
+            Hold button to speak
+        </div>
+        
+        <div class="controls">
+            <button class="talk-btn" id="talkBtn" onmousedown="jarvis.startTalk()" onmouseup="jarvis.stopTalk()" ontouchstart="jarvis.startTalk()" ontouchend="jarvis.stopTalk()">
+                PRESS TO TALK
+            </button>
+            <div class="hint">Push and hold • Release to send</div>
+        </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // ========================================================================
-        // JARVIS - UNIFIED INTERFACE
-        // ========================================================================
-        
-        const canvas = document.getElementById('particles');
-        const ctx = canvas.getContext('2d');
-        const orb = document.getElementById('orb');
-        const orbContainer = document.getElementById('orbContainer');
-        const statusText = document.getElementById('status');
-        const hint = document.getElementById('hint');
-        const btnHold = document.getElementById('btnHold');
-        const btnVoice = document.getElementById('btnVoice');
-        
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        
-        // STATE
-        let currentMode = 'hold'; // 'hold' o 'voice'
-        let peerConnection = null;
-        let dataChannel = null;
-        let mediaRecorder = null;
-        let audioChunks = [];
-        let isRecording = false;
-        let recognition = null;
-        let audioQueue = [];
-        let isPlayingAudio = false;
-        
-        // PARTICLES
-        const particles = [];
-        const particleCount = 80;
-        
-        class Particle {
+        class JARVIS {
             constructor() {
-                this.reset();
+                this.initThreeJS();
+                this.createOrb();
+                this.setupAudio();
+                this.animate();
+                this.isSpeaking = false;
+                this.isRecording = false;
+                this.audioChunks = [];
             }
-            reset() {
-                this.x = canvas.width / 2;
-                this.y = canvas.height / 2;
-                const angle = Math.random() * Math.PI * 2;
-                const speed = Math.random() * 1.5 + 0.3;
-                this.vx = Math.cos(angle) * speed;
-                this.vy = Math.sin(angle) * speed;
-                this.life = 1;
-                this.decay = Math.random() * 0.008 + 0.003;
-                this.size = Math.random() * 2 + 0.5;
-            }
-            update() {
-                this.x += this.vx;
-                this.y += this.vy;
-                this.life -= this.decay;
-                if (this.life <= 0) this.reset();
-            }
-            draw() {
-                ctx.save();
-                ctx.globalAlpha = this.life * 0.6;
-                ctx.fillStyle = '#00d4ff';
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
-            }
-        }
-        
-        for (let i = 0; i < particleCount; i++) {
-            particles.push(new Particle());
-        }
-        
-        function animateParticles() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            particles.forEach(p => { p.update(); p.draw(); });
-            requestAnimationFrame(animateParticles);
-        }
-        animateParticles();
-        
-        // STATUS FUNCTIONS
-        function setStatus(text, state) {
-            statusText.textContent = text;
-            orb.className = `orb ${state}`;
-        }
-        
-        function log(msg) {
-            console.log(`[JARVIS] ${msg}`);
-        }
-        
-        // MODE SWITCHING
-        btnHold.addEventListener('click', () => {
-            if (currentMode === 'hold') return;
-            currentMode = 'hold';
-            btnHold.classList.add('active');
-            btnVoice.classList.remove('active');
-            hint.textContent = 'HOLD ORB TO SPEAK';
-            if (recognition) {
-                recognition.stop();
-                recognition = null;
-            }
-            if (dataChannel && dataChannel.readyState === 'open') {
-                setStatus('ONLINE - HOLD MODE', '');
-            }
-            log('Mode: HOLD');
-        });
-        
-        btnVoice.addEventListener('click', () => {
-            if (currentMode === 'voice') return;
-            currentMode = 'voice';
-            btnVoice.classList.add('active');
-            btnHold.classList.remove('active');
-            hint.textContent = 'VOICE ACTIVATED';
-            if (dataChannel && dataChannel.readyState === 'open') {
-                initVoiceRecognition();
-            }
-            log('Mode: VOICE');
-        });
-        
-        // WEBRTC INIT
-        async function initWebRTC() {
-            try {
-                setStatus('CONNECTING...', '');
-                peerConnection = new RTCPeerConnection({
-                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-                });
 
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+            initThreeJS() {
+                const canvas = document.getElementById('canvas');
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.camera.position.z = 8;
+
+                this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+                this.renderer.setClearColor(0x000000, 0);
+
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
                 });
+            }
+
+            createOrb() {
+                const geometry = new THREE.IcosahedronGeometry(2.5, 5);
                 
-                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
-                dataChannel = peerConnection.createDataChannel('jarvis');
-                
-                dataChannel.onopen = () => {
-                    log('ONLINE');
-                    setStatus('ONLINE - HOLD MODE', '');
-                    dataChannel.send(JSON.stringify({type: 'client_ready'}));
-                };
+                const vertexShader = `
+                    varying vec3 vNormal;
+                    varying vec3 vPosition;
+                    void main() {
+                        vNormal = normalize(normalMatrix * normal);
+                        vPosition = position;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `;
 
-                dataChannel.onmessage = (event) => {
-                    try {
-                        const msg = JSON.parse(event.data);
-                        handleServerMessage(msg);
-                    } catch (e) {}
-                };
+                const fragmentShader = `
+                    uniform float time;
+                    uniform vec3 color1;
+                    uniform vec3 color2;
+                    varying vec3 vNormal;
+                    varying vec3 vPosition;
+                    void main() {
+                        vec3 viewDir = normalize(cameraPosition - vPosition);
+                        float fresnel = pow(1.0 - dot(vNormal, viewDir), 2.5);
+                        float gradient = sin(vPosition.y * 0.8 + time * 0.3) * 0.5 + 0.5;
+                        vec3 color = mix(color1, color2, gradient);
+                        vec3 final = color + fresnel * vec3(0.2, 0.4, 0.6);
+                        gl_FragColor = vec4(final, 0.85 + fresnel * 0.15);
+                    }
+                `;
 
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-
-                const response = await fetch('/offer', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sdp: offer.sdp, type: offer.type })
+                this.orbMat = new THREE.ShaderMaterial({
+                    vertexShader,
+                    fragmentShader,
+                    uniforms: {
+                        time: { value: 0 },
+                        color1: { value: new THREE.Color(0x64b5f6) },
+                        color2: { value: new THREE.Color(0x0d47a1) },
+                    },
+                    transparent: true,
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending
                 });
 
-                const answer = await response.json();
-                await peerConnection.setRemoteDescription(answer);
-            } catch (error) {
-                log(`Error: ${error.message}`);
-                setStatus('CONNECTION FAILED', 'offline');
-                alert(`Errore connessione:\n${error.message}\n\nPermetti accesso al microfono!`);
-            }
-        }
-        
-        // VOICE RECOGNITION (modalità Voice)
-        function initVoiceRecognition() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert('Speech recognition non supportato');
-                return;
-            }
-            
-            recognition = new SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = false;
-            recognition.lang = 'it-IT';
-            
-            recognition.onstart = () => {
-                log('Voice recognition started');
-                setStatus('LISTENING...', 'listening');
-            };
-            
-            recognition.onresult = (event) => {
-                const last = event.results.length - 1;
-                const text = event.results[last][0].transcript.trim();
-                log(`Voice: "${text}"`);
-                setStatus('PROCESSING...', '');
-                if (dataChannel && dataChannel.readyState === 'open') {
-                    dataChannel.send(JSON.stringify({ type: 'user_question', text: text }));
+                this.orb = new THREE.Mesh(geometry, this.orbMat);
+                this.scene.add(this.orb);
+
+                // Rings
+                for (let i = 0; i < 3; i++) {
+                    const ring = new THREE.Mesh(
+                        new THREE.TorusGeometry(3.5 + i * 0.6, 0.015, 16, 100),
+                        new THREE.MeshBasicMaterial({
+                            color: 0x64b5f6,
+                            transparent: true,
+                            opacity: 0.25 - i * 0.07,
+                            blending: THREE.AdditiveBlending
+                        })
+                    );
+                    ring.rotation.x = Math.PI / 2 + Math.random() * 0.2;
+                    ring.rotation.y = Math.random() * Math.PI;
+                    this.scene.add(ring);
+                    this.rings = this.rings || [];
+                    this.rings.push(ring);
                 }
-            };
-            
-            recognition.onerror = (event) => {
-                if (event.error !== 'no-speech') {
-                    log(`Voice error: ${event.error}`);
-                }
-            };
-            
-            recognition.onend = () => {
-                if (currentMode === 'voice' && dataChannel && dataChannel.readyState === 'open') {
-                    setTimeout(() => recognition.start(), 100);
-                }
-            };
-            
-            recognition.start();
-        }
-        
-        // HOLD TO TALK (modalità Hold)
-        async function startRecording() {
-            if (currentMode !== 'hold') return;
-            
-            try {
-                audioChunks = [];
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, sampleRate: 16000 } 
-                });
-                
-                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
-                mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunks.push(event.data); };
-                mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
-                    await sendAudioToWhisper(audioBlob);
-                    stream.getTracks().forEach(track => track.stop());
-                };
-                
-                mediaRecorder.start();
-                isRecording = true;
-                setStatus('RECORDING...', 'listening');
-                log('Recording started');
-            } catch (error) {
-                log(`Recording error: ${error}`);
+
+                // Lights
+                const light1 = new THREE.PointLight(0x64b5f6, 2, 30);
+                light1.position.set(5, 5, 5);
+                this.scene.add(light1);
+
+                const light2 = new THREE.PointLight(0x1976d2, 1, 20);
+                light2.position.set(-5, -5, 3);
+                this.scene.add(light2);
             }
-        }
-        
-        function stopRecording() {
-            if (mediaRecorder && isRecording) {
-                mediaRecorder.stop();
-                isRecording = false;
-                setStatus('PROCESSING...', '');
-                log('Recording stopped');
+
+            async setupAudio() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+                    this.mediaRecorder = new MediaRecorder(stream);
+                    this.mediaRecorder.ondataavailable = (e) => this.audioChunks.push(e.data);
+                    this.mediaRecorder.onstop = () => this.sendAudio();
+                } catch (e) {
+                    console.error('Mic error:', e);
+                    this.setText('🚫 Microphone access denied');
+                }
             }
-        }
-        
-        async function sendAudioToWhisper(audioBlob) {
-            try {
-                const formData = new FormData();
-                formData.append('audio', audioBlob, 'recording.webm');
+
+            startTalk() {
+                if (this.isSpeaking || this.isRecording) return;
+                this.isRecording = true;
+                this.audioChunks = [];
+                this.mediaRecorder.start();
+                this.setState('listening');
+                this.setText('🎤 Listening...');
+            }
+
+            stopTalk() {
+                if (!this.isRecording) return;
+                this.isRecording = false;
+                this.mediaRecorder.stop();
+                this.setState('idle');
+            }
+
+            async sendAudio() {
+                if (this.audioChunks.length === 0) return;
+
+                const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
+                this.audioChunks = [];
+                this.setState('idle');
+                this.setText('Processing...');
+
+                try {
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob);
+
+                    const response = await fetch('/process_audio', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (data.status === 'success') {
+                        this.isSpeaking = true;
+                        this.setState('speaking');
+                        this.setText(data.response);
+
+                        if (data.audio) {
+                            await this.playAudio(data.audio);
+                        }
+
+                        this.isSpeaking = false;
+                        this.setState('idle');
+                        this.setText('Ready - Hold to speak');
+                    }
+                } catch (e) {
+                    console.error('Error:', e);
+                    this.setText('❌ Error');
+                    this.setState('idle');
+                }
+            }
+
+            async playAudio(base64) {
+                try {
+                    const audioData = atob(base64);
+                    const audioArray = new Uint8Array(audioData.length);
+                    for (let i = 0; i < audioData.length; i++) {
+                        audioArray[i] = audioData.charCodeAt(i);
+                    }
+                    const blob = new Blob([audioArray], { type: 'audio/wav' });
+                    const url = URL.createObjectURL(blob);
+                    const audio = new Audio(url);
+                    await audio.play();
+                } catch (e) {
+                    console.error('Audio error:', e);
+                }
+            }
+
+            setState(state) {
+                const status = document.getElementById('status');
+                const textBox = document.getElementById('textBox');
                 
-                const response = await fetch('/transcribe', { method: 'POST', body: formData });
-                const result = await response.json();
-                
-                if (result.error) throw new Error(result.error);
-                
-                const transcription = result.text || '';
-                log(`Whisper: "${transcription}"`);
-                
-                if (transcription.trim() && dataChannel && dataChannel.readyState === 'open') {
-                    dataChannel.send(JSON.stringify({ type: 'user_question', text: transcription }));
+                if (state === 'listening') {
+                    status.textContent = 'LISTENING...';
+                    status.className = 'status listening';
+                    this.orbMat.uniforms.color1.value = new THREE.Color(0xffa726);
+                    this.orbMat.uniforms.color2.value = new THREE.Color(0xe65100);
+                } else if (state === 'speaking') {
+                    status.textContent = 'SPEAKING';
+                    status.className = 'status speaking';
+                    textBox.classList.add('speaking');
+                    this.orbMat.uniforms.color1.value = new THREE.Color(0x66bb6a);
+                    this.orbMat.uniforms.color2.value = new THREE.Color(0x2e7d32);
                 } else {
-                    setStatus('NOT UNDERSTOOD', '');
-                    setTimeout(() => setStatus('ONLINE - HOLD MODE', ''), 2000);
+                    status.textContent = 'JARVIS READY';
+                    status.className = 'status';
+                    textBox.classList.remove('speaking');
+                    this.orbMat.uniforms.color1.value = new THREE.Color(0x64b5f6);
+                    this.orbMat.uniforms.color2.value = new THREE.Color(0x0d47a1);
                 }
-            } catch (error) {
-                log(`Whisper error: ${error}`);
-                setStatus('ERROR', 'offline');
-                setTimeout(() => setStatus('ONLINE - HOLD MODE', ''), 2000);
             }
-        }
-        
-        // MESSAGE HANDLER
-        function handleServerMessage(msg) {
-            switch (msg.type) {
-                case 'audio_chunk':
-                    log('Audio chunk received');
-                    setStatus('SPEAKING...', 'speaking');
-                    audioQueue.push({ data: msg.data, is_final: msg.is_final });
-                    if (!isPlayingAudio) playNextAudio();
-                    break;
-                case 'audio_stream_end':
-                    log('Stream end');
-                    break;
+
+            setText(text) {
+                document.getElementById('textBox').textContent = text;
             }
-        }
-        
-        // AUDIO PLAYBACK QUEUE
-        async function playNextAudio() {
-            if (audioQueue.length === 0) {
-                isPlayingAudio = false;
-                if (currentMode === 'voice') {
-                    setStatus('LISTENING...', 'listening');
-                } else {
-                    setStatus('ONLINE - HOLD MODE', '');
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+
+                const time = Date.now() * 0.001;
+                this.orbMat.uniforms.time.value = time;
+
+                this.orb.rotation.y += 0.001;
+                this.orb.rotation.x = Math.sin(time * 0.2) * 0.05;
+
+                if (this.rings) {
+                    this.rings.forEach((ring, i) => {
+                        ring.rotation.z += 0.0005 * (i + 1) * (i % 2 === 0 ? 1 : -1);
+                    });
                 }
-                return;
+
+                this.renderer.render(this.scene, this.camera);
             }
-            
-            isPlayingAudio = true;
-            const chunk = audioQueue.shift();
-            
-            try {
-                const mp3Data = atob(chunk.data);
-                const bytes = new Uint8Array(mp3Data.length);
-                for (let i = 0; i < mp3Data.length; i++) bytes[i] = mp3Data.charCodeAt(i);
-                const blob = new Blob([bytes], { type: 'audio/mpeg' });
-                const url = URL.createObjectURL(blob);
-                
-                const audio = new Audio();
-                audio.preload = 'auto';
-                audio.src = url;
-                audio.volume = 1.0;
-                
-                await new Promise((resolve, reject) => {
-                    audio.addEventListener('canplaythrough', () => audio.play().then(resolve).catch(reject), { once: true });
-                    audio.addEventListener('error', reject);
-                    audio.load();
-                });
-                
-                await new Promise(resolve => { 
-                    audio.onended = () => { URL.revokeObjectURL(url); resolve(); }; 
-                });
-                
-                await new Promise(resolve => setTimeout(resolve, 400)); // ← Pause più lunghe come JARVIS
-            } catch (e) {
-                log(`Playback error: ${e}`);
-            }
-            
-            playNextAudio();
         }
-        
-        // ORB EVENTS (Hold mode)
-        orbContainer.addEventListener('mousedown', startRecording);
-        orbContainer.addEventListener('mouseup', stopRecording);
-        orbContainer.addEventListener('mouseleave', stopRecording);
-        orbContainer.addEventListener('touchstart', (e) => { e.preventDefault(); startRecording(); });
-        orbContainer.addEventListener('touchend', (e) => { e.preventDefault(); stopRecording(); });
-        
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        });
-        
-        // AUTO-START
-        setTimeout(() => {
-            initWebRTC();
-        }, 500);
-        
-        log('JARVIS Unified System Loaded');
+
+        const jarvis = new JARVIS();
     </script>
 </body>
 </html>

@@ -1,236 +1,259 @@
-#!/usr/bin/env python3
-"""
-server_webrtc.py - JARVIS OPZIONE C (Streaming Sequenziale)
-"""
-import asyncio
-import json
+"""server/server_webrtc.py - JARVIS WebRTC Server FIXED"""
+
 import os
-import tempfile
-import traceback
+import ssl
+import json
 import base64
+import asyncio
+import wave
 from pathlib import Path
-import numpy as np
+from io import BytesIO
 from aiohttp import web
-from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack
-from av import AudioFrame
-import config
-from core.speak_edge import speak_edge
+import aiofiles
+
 from core.jarvis_ai import llm_stream
+from core.speak_edge import speak_edge_sync
+from config import OPENAI_API_KEY, HOST, PORT, USE_HTTPS
 
-DEBUG = getattr(config, "VERBOSE", False)
+# ============================================================================
+# SETUP APP
+# ============================================================================
 
-def log_tag(tag, *parts):
-    if not DEBUG:
-        if tag not in ("USER", "GPT", "SSL", "PC", "WHISPER", "DC", "TTS"):
-            return
-    try:
-        print(f"[{tag}]", *parts)
-    except Exception:
-        pass
-
-class SynthTrack(MediaStreamTrack):
-    kind = "audio"
-    def __init__(self):
-        super().__init__()
-        self._queue = asyncio.Queue()
-    async def recv(self):
-        await asyncio.sleep(1)
-        return AudioFrame.from_ndarray(np.zeros((160, 1), dtype=np.int16), format="s16", layout="mono")
-
-active_connections = {}
-pcs = set()
 app = web.Application()
-BASE_DIR = Path(__file__).parent
 
-async def client_page(request):
-    f = BASE_DIR / "index.html"
-    if f.exists():
-        return web.FileResponse(str(f))
-    return web.Response(text="index.html not found", status=404)
+# ============================================================================
+# HELPER - AUDIO PROCESSING
+# ============================================================================
 
-app.router.add_get("/", client_page)
-
-async def transcribe_audio(request):
+def wav_to_pcm(wav_bytes):
+    """Converti WAV a PCM raw"""
     try:
+        wav_file = BytesIO(wav_bytes)
+        with wave.open(wav_file, 'rb') as wav:
+            params = wav.getparams()
+            frames = wav.readframes(params.nframes)
+            return frames, params
+    except Exception as e:
+        print(f"[WAV] Errore: {e}")
+        return None, None
+
+
+async def transcribe_audio_with_whisper(audio_bytes: bytes) -> str:
+    """Trascrivi audio con Whisper"""
+    try:
+        from openai import AsyncOpenAI
+        
+        client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        
+        # Converti a WAV corretto
+        audio_file = BytesIO(audio_bytes)
+        audio_file.name = "audio.wav"
+        
+        # Whisper API
+        transcript = await client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_file,
+            language="it",
+            prompt="JARVIS Assistant"
+        )
+        
+        text = transcript.text.strip()
+        return text if text else "[SILENZIO]"
+        
+    except Exception as e:
+        print(f"[WHISPER] Errore: {e}")
+        return "[ERRORE TRASCRIZIONE]"
+
+
+async def get_jarvis_response(text: str) -> str:
+    """Ottieni risposta JARVIS"""
+    try:
+        if "[ERRORE" in text or "[SILENZIO]" in text:
+            return "Mi dispiace, non ho capito bene. Ripeti signore."
+        
+        response_text = ""
+        async for msg_type, content in llm_stream(text):
+            if msg_type == "delta":
+                response_text += content
+        
+        return response_text.strip() if response_text.strip() else "Si è verificato un errore tecnico."
+        
+    except Exception as e:
+        print(f"[LLM] Errore: {e}")
+        return "Si è verificato un errore tecnico."
+
+
+async def generate_tts_response(text: str) -> str:
+    """Genera TTS e ritorna base64"""
+    try:
+        print(f"[TTS] Generando audio: {text[:50]}...")
+        
+        # Usa versione sync
+        audio_file = speak_edge_sync(text)
+        
+        if not audio_file or not Path(audio_file).exists():
+            print("[TTS] ❌ Audio file not created")
+            return ""
+        
+        # Leggi e converti a base64
+        async with aiofiles.open(audio_file, 'rb') as f:
+            audio_bytes = await f.read()
+        
+        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+        
+        # Pulizia
+        try:
+            os.remove(audio_file)
+        except:
+            pass
+        
+        return audio_base64
+        
+    except Exception as e:
+        print(f"[TTS] Errore: {e}")
+        return ""
+
+
+# ============================================================================
+# ROTTE HTTP
+# ============================================================================
+
+async def index(request):
+    """Serve index.html"""
+    try:
+        ui_path = Path(__file__).parent.parent / 'ui' / 'index.html'
+        async with aiofiles.open(ui_path, 'r', encoding='utf-8') as f:
+            content = await f.read()
+        return web.Response(text=content, content_type='text/html')
+    except Exception as e:
+        print(f"[HTTP] Errore: {e}")
+        return web.Response(status=500, text="Errore caricamento UI")
+
+
+async def process_audio(request):
+    """Processa audio ricevuto"""
+    try:
+        # Leggi audio
         reader = await request.multipart()
         audio_data = None
+        
         async for field in reader:
             if field.name == 'audio':
                 audio_data = await field.read()
                 break
-        if not audio_data:
-            return web.json_response({"error": "No audio"}, status=400)
         
-        log_tag("WHISPER", f"Ricevuti {len(audio_data)} bytes")
-        with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
-            tmp.write(audio_data)
-            tmp_path = tmp.name
+        if not audio_data or len(audio_data) < 100:
+            return web.json_response({
+                'status': 'error',
+                'response': 'Audio troppo corto',
+                'audio': ''
+            })
         
-        try:
-            from openai import OpenAI
-            client = OpenAI(api_key=getattr(config, "OPENAI_API_KEY", None))
-            with open(tmp_path, 'rb') as audio_file:
-                transcription = client.audio.transcriptions.create(
-                    model="whisper-1", file=audio_file, language="it", temperature=0.0
-                )
-            text = transcription.text.strip()
-            log_tag("WHISPER", f"✅ '{text}'")
-            return web.json_response({"text": text})
-        finally:
-            try:
-                os.remove(tmp_path)
-            except:
-                pass
+        print(f"[AUDIO] Ricevuti {len(audio_data)} bytes")
+        
+        # ============================================================================
+        # STEP 1: TRASCRIVI
+        # ============================================================================
+        
+        print("[WHISPER] Trascrizione...")
+        user_text = await transcribe_audio_with_whisper(audio_data)
+        print(f"[WHISPER] → {user_text}")
+        
+        # ============================================================================
+        # STEP 2: RISPOSTA JARVIS
+        # ============================================================================
+        
+        print("[LLM] Elaborando...")
+        response_text = await get_jarvis_response(user_text)
+        print(f"[LLM] → {response_text[:80]}...")
+        
+        # ============================================================================
+        # STEP 3: TTS
+        # ============================================================================
+        
+        audio_base64 = await generate_tts_response(response_text)
+        
+        # ============================================================================
+        # STEP 4: RITORNA
+        # ============================================================================
+        
+        return web.json_response({
+            'status': 'success',
+            'transcript': user_text,
+            'response': response_text,
+            'audio': audio_base64
+        })
+        
     except Exception as e:
-        log_tag("WHISPER", f"❌ {e}")
-        return web.json_response({"error": str(e)}, status=500)
+        print(f"[ERROR] {e}")
+        return web.json_response({
+            'status': 'error',
+            'error': str(e),
+            'response': 'Errore interno'
+        }, status=500)
 
-app.router.add_post("/transcribe", transcribe_audio)
 
-TTS_SEM = asyncio.Semaphore(3)
+async def health(request):
+    """Health check"""
+    return web.json_response({'status': 'ok'})
 
-async def offer(request):
-    params = await request.json()
-    offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
-    pc = RTCPeerConnection()
-    pcs.add(pc)
-    pc_id = id(pc)
-    log_tag("PC", f"Peer: {pc_id}")
-    synth_out = SynthTrack()
+
+# ============================================================================
+# SETUP ROTTE
+# ============================================================================
+
+app.router.add_get('/', index)
+app.router.add_post('/process_audio', process_audio)
+app.router.add_get('/health', health)
+
+# ============================================================================
+# SSL
+# ============================================================================
+
+ssl_context = None
+if USE_HTTPS:
+    cert_file = Path(__file__).parent.parent / 'certs' / 'cert.pem'
+    key_file = Path(__file__).parent.parent / 'certs' / 'key.pem'
     
-    @pc.on("datachannel")
-    def on_datachannel(channel):
-        active_connections[pc_id] = channel
-        log_tag("DC", "✅ Channel")
-        
-        @channel.on("open")
-        def on_open():
-            greeting = "Come posso esserle utile, signore?"
-            channel.send(json.dumps({"type":"llm_fragment","text":greeting}))
-            asyncio.create_task(send_audio_chunk(channel, greeting, is_final=True))
-        
-        @channel.on("close")
-        def on_close():
-            if pc_id in active_connections:
-                del active_connections[pc_id]
-        
-        @channel.on("message")
-        def on_message(message):
-            try:
-                obj = json.loads(message)
-            except:
-                return
-            
-            if obj and obj.get("type") == "client_ready":
-                channel.send(json.dumps({"type":"ack"}))
-            elif obj and obj.get("type") == "user_question":
-                question = obj.get("text", "").strip()
-                if question:
-                    asyncio.create_task(process_question(question, pc_id))
-    
-    @pc.on("track")
-    def on_track(track):
-        pass
-    
-    async def process_question(question, conn_id):
-        """OPZIONE C - Streaming a frasi + riproduzione sequenziale"""
-        log_tag("USER", question)
-        dc = active_connections.get(conn_id)
-        if not dc:
-            return
-        
-        dc.send(json.dumps({"type": "stt_final", "text": question}))
-        
-        full_text = ""
-        sentence_buffer = ""
-        chunk_count = 0
-        
-        async for kind, payload in llm_stream(question):
-            if kind == "delta":
-                full_text += payload
-                sentence_buffer += payload
-                dc.send(json.dumps({"type": "llm_delta", "text": payload}))
-                
-                # Genera TTS a frasi
-                if payload in '.!?':
-                    sent = sentence_buffer.strip()
-                    if sent and len(sent) > 3:
-                        chunk_count += 1
-                        log_tag("TTS", f"Chunk {chunk_count}: '{sent[:40]}...'")
-                        asyncio.create_task(send_audio_chunk(dc, sent, is_final=False))
-                    sentence_buffer = ""
-                    
-            elif kind == "done":
-                if full_text:
-                    dc.send(json.dumps({"type": "llm_fragment", "text": full_text}))
-                    log_tag("GPT", full_text)
-                    
-                    if sentence_buffer.strip():
-                        chunk_count += 1
-                        asyncio.create_task(send_audio_chunk(dc, sentence_buffer.strip(), is_final=True))
-                    else:
-                        dc.send(json.dumps({"type": "audio_stream_end"}))
-                
-                full_text = ""
-    
-    async def send_audio_chunk(channel, text, is_final=False):
-        """Invia chunk audio con metadata"""
-        try:
-            await TTS_SEM.acquire()
-        except:
-            return
-        
-        try:
-            log_tag("TTS", f"Generazione...")
-            mp3_bytes = await asyncio.get_running_loop().run_in_executor(
-                None, speak_edge, text, None, True, None
-            )
-            mp3_b64 = base64.b64encode(mp3_bytes).decode('utf-8')
-            channel.send(json.dumps({
-                "type": "audio_chunk",
-                "data": mp3_b64,
-                "is_final": is_final
-            }))
-            log_tag("TTS", f"✅ Chunk ({len(mp3_bytes)} bytes)")
-        except Exception as e:
-            log_tag("TTS", f"❌ {e}")
-            traceback.print_exc()
-        finally:
-            TTS_SEM.release()
-    
-    pc.addTrack(synth_out)
-    await pc.setRemoteDescription(offer)
-    answer = await pc.createAnswer()
-    await pc.setLocalDescription(answer)
-    return web.json_response({"sdp": pc.localDescription.sdp, "type": pc.localDescription.type})
-
-app.router.add_post("/offer", offer)
-
-async def on_shutdown(app):
-    await asyncio.gather(*[pc.close() for pc in pcs], return_exceptions=True)
-    pcs.clear()
-    active_connections.clear()
-
-app.on_shutdown.append(on_shutdown)
-
-if __name__ == "__main__":
-    import ssl
-    ssl_context = None
-    cert_file = Path("cert.pem")
-    key_file = Path("key.pem")
     if cert_file.exists() and key_file.exists():
         try:
             ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             ssl_context.load_cert_chain(str(cert_file), str(key_file))
-            log_tag("SSL", "✅ HTTPS")
-        except:
-            pass
+            print("[SSL] ✅ HTTPS enabled")
+        except Exception as e:
+            print(f"[SSL] ⚠️  {e}")
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+async def main():
+    """Avvia server"""
+    runner = web.AppRunner(app)
+    await runner.setup()
+    
+    protocol = 'HTTPS' if ssl_context else 'HTTP'
+    site = web.TCPSite(runner, HOST, PORT, ssl_context=ssl_context)
+    await site.start()
     
     print("=" * 80)
-    print("🤖 JARVIS - OPZIONE C (Streaming Sequenziale)")
+    print("🤖 J.A.R.V.I.S - WebRTC Server")
     print("=" * 80)
-    print(f"Host: {config.HOST}:{config.PORT}")
-    print(f"TTS: Edge - voce '{config.EDGE_TTS_VOICE}'")
+    print(f"[SERVER] {protocol} Running on {HOST}:{PORT}")
+    print(f"[OpenAI] API: {'✅' if OPENAI_API_KEY else '❌'}")
     print("=" * 80)
+    print(f"📱 Accedi: {protocol.lower()}://localhost:{PORT}\n")
     
-    web.run_app(app, host=config.HOST, port=config.PORT, ssl_context=ssl_context)
+    try:
+        await asyncio.Event().wait()
+    except KeyboardInterrupt:
+        print("\n[SERVER] Shutdown...")
+    finally:
+        await runner.cleanup()
+
+
+if __name__ == '__main__':
+    if os.name == 'nt':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    
+    asyncio.run(main())
