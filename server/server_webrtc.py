@@ -14,8 +14,8 @@ from aiohttp import web
 from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack
 from av import AudioFrame
 import config
-from speak_edge import speak_edge
-from jarvis_ai import llm_stream
+from core.speak_edge import speak_edge
+from core.jarvis_ai import llm_stream
 
 DEBUG = getattr(config, "VERBOSE", False)
 

@@ -24,7 +24,8 @@ pvporcupine>=2.2.0
 requests>=2.31.0
 
 # Environment Variables
-python-dotenv>=1.0.0
+python-dotenv
+
 
 # ============================================================================
 # OPZIONALI - Decommenta se necessario

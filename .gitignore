@@ -58,3 +58,6 @@ certs/key.pem
 audio/
 *.wav
 *.mp3
+
+# Data
+setx WEATHER_API_KEY "295c1eaa1f814ee88a591703252910"
