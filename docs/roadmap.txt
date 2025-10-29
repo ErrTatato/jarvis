@@ -1,0 +1,405 @@
+METEO ULTRA-PRECISO
+
+    ✅ Meteo attuale (posizione GPS del telefono)
+
+    ✅ Previsioni orarie (prossime 48 ore)
+
+    ✅ Previsioni settimanali (7-14 giorni)
+
+    ✅ Temperatura percepita
+
+    ✅ Umidità, vento, pressione
+
+    ✅ Probabilità pioggia ora per ora
+
+    ✅ UV index (protezione solare)
+
+    ✅ Qualità dell'aria (AQI)
+
+    ✅ Allerta meteo (temporali, neve, nebbia)
+
+    ✅ Alba/tramonto
+
+    ✅ Fasi lunari
+
+    ✅ Meteo su mappa (radar precipitazioni)
+
+    ✅ Confronto meteo tra città diverse
+
+    ✅ Storico meteo (anni precedenti)
+
+    ✅ Meteo aeroporti (per voli)
+
+API Consigliate:
+
+    OpenWeatherMap (gratis 1000 call/giorno)
+
+    WeatherAPI (gratis 1M call/mese!)
+
+    Tomorrow.io (ultra-preciso, nowcasting)
+
+    Visual Crossing (storico + previsioni)
+
+Esempi comandi:
+
+    "JARVIS, che tempo fa adesso?"
+    "JARVIS, pioverà oggi pomeriggio?"
+    "JARVIS, che tempo farà a Roma domani?"
+    "JARVIS, devo portare l'ombrello?"
+    "JARVIS, a che ora tramonta il sole?"
+    "JARVIS, qual è l'umidità ora?"
+    "JARVIS, temperatura percepita?"
+    "JARVIS, qualità dell'aria a Milano?"
+
+🌍 ALTRE CATEGORIE CHE MI ERO DIMENTICATO!
+🗺️ GEO-LOCALIZZAZIONE & MAPPE
+
+    ✅ Tracciare posizione in tempo reale
+
+    ✅ Geofencing (alert quando entri/esci da zone)
+
+    ✅ Trova parcheggi vicini
+
+    ✅ Stazioni servizio più vicine (prezzi benzina)
+
+    ✅ Ristoranti/bar nelle vicinanze (con recensioni)
+
+    ✅ ATM/Bancomat vicini
+
+    ✅ Farmacie di turno
+
+    ✅ Distanza/tempo verso destinazioni
+
+    ✅ Traffico in tempo reale (alternative percorsi)
+
+    ✅ Mezzi pubblici (orari bus/metro)
+
+    ✅ Posti liberi bike/scooter sharing
+
+Esempi:
+
+    "JARVIS, dov'è il parcheggio più vicino?"
+    "JARVIS, fammi sapere quando arrivo vicino casa"
+    "JARVIS, trova ristorante italiano nelle vicinanze"
+
+🎮 GAMING & ESPORTS
+
+    ✅ Stats giochi (Fortnite, LoL, Valorant)
+
+    ✅ Classifiche live
+
+    ✅ Tornei esports in corso
+
+    ✅ Notifiche match favoriti
+
+    ✅ Twitch stream live
+
+    ✅ Prezzo giochi Steam/Epic/PS Store
+
+    ✅ Deals gaming
+
+Esempi:
+
+    "JARVIS, che rank ho su LoL?"
+    "JARVIS, quando gioca il team Fnatic?"
+
+📱 SMARTPHONE & DEVICE
+
+    ✅ Controllare batteria dispositivi
+
+    ✅ Attivare/disattivare WiFi/Bluetooth
+
+    ✅ Volume sistema
+
+    ✅ Modalità aereo
+
+    ✅ Fotocamera (scatta foto)
+
+    ✅ Torcia on/off
+
+    ✅ Screenshot
+
+    ✅ Registrare schermo
+
+    ✅ Leggere notifiche
+
+    ✅ Rispondere SMS/WhatsApp
+
+    ✅ Chiamate vivavoce
+
+Esempi:
+
+    "JARVIS, accendi la torcia"
+    "JARVIS, quanto è carica la batteria?"
+    "JARVIS, fai uno screenshot"
+
+🍕 FOOD & DELIVERY
+
+    ✅ Ordinare cibo (UberEats, Deliveroo, Glovo)
+
+    ✅ Prenotare ristorante (TheFork)
+
+    ✅ Ricette cucina
+
+    ✅ Lista spesa automatica
+
+    ✅ Tracking ordini food
+
+    ✅ Calorie piatti
+
+    ✅ Supermercati con consegna (Esselunga, Carrefour)
+
+Esempi:
+
+    "JARVIS, ordina pizza margherita da asporto"
+    "JARVIS, prenota tavolo per 4 stasera alle 20"
+    "JARVIS, dammi ricetta carbonara"
+
+🚴 SPORT & OUTDOOR
+
+    ✅ Percorsi running/ciclismo
+
+    ✅ Tracking allenamenti live
+
+    ✅ Calorie bruciate
+
+    ✅ Statistiche performance
+
+    ✅ Sfide con amici
+
+    ✅ Meteo per sport outdoor
+
+    ✅ Piste sci aperte
+
+    ✅ Condizioni mare (surf, vela)
+
+    ✅ Sentieri trekking
+
+    ✅ Palestre nelle vicinanze
+
+Esempi:
+
+    "JARVIS, inizia tracking corsa"
+    "JARVIS, quante calorie ho bruciato?"
+    "JARVIS, condizioni sci a Cortina?"
+
+🐶 ANIMALI & PET
+
+    ✅ Promemoria pappa/medicine pet
+
+    ✅ Veterinari vicini
+
+    ✅ Tracking GPS collare pet
+
+    ✅ Distributore cibo automatico
+
+    ✅ Telecamera pet (vedi cane/gatto)
+
+    ✅ Appuntamenti veterinario
+
+Esempi:
+
+    "JARVIS, dai da mangiare al gatto"
+    "JARVIS, dove si trova il cane?"
+
+🏢 BUSINESS & CRM
+
+    ✅ Gestire lead (HubSpot, Salesforce)
+
+    ✅ Chiamate clienti (log automatico)
+
+    ✅ Fatture/preventivi
+
+    ✅ Tracking vendite
+
+    ✅ Report automatici
+
+    ✅ LinkedIn automation
+
+    ✅ Email marketing
+
+    ✅ Analisi competitor
+
+Esempi:
+
+    "JARVIS, crea preventivo per cliente X"
+    "JARVIS, quante vendite questo mese?"
+
+🎓 EDUCAZIONE & STUDIO
+
+    ✅ Promemoria lezioni/esami
+
+    ✅ Riassunti PDF/libri
+
+    ✅ Traduzioni documenti
+
+    ✅ Spiegazioni concetti difficili
+
+    ✅ Flashcard automatiche
+
+    ✅ Quiz/test
+
+    ✅ Calcoli matematici complessi
+
+    ✅ Corsi online (Udemy, Coursera)
+
+Esempi:
+
+    "JARVIS, riassumi questo PDF"
+    "JARVIS, spiegami la relatività"
+    "JARVIS, quando ho l'esame di fisica?"
+
+🏠 CASA & MANUTENZIONE
+
+    ✅ Promemoria manutenzione (caldaia, auto)
+
+    ✅ Scadenze bollette
+
+    ✅ Idraulico/elettricista vicino
+
+    ✅ Monitoraggio consumi energia
+
+    ✅ Allarme casa (Ring, Nest)
+
+    ✅ Videocitofono smart
+
+    ✅ Robot aspirapolvere
+
+    ✅ Lavatrice/lavastoviglie smart
+
+Esempi:
+
+    "JARVIS, avvia aspirapolvere"
+    "JARVIS, quando scade bolletta luce?"
+    "JARVIS, mostrami il citofono"
+
+🎨 CREATIVITÀ & DESIGN
+
+    ✅ Generare immagini (DALL-E, Midjourney)
+
+    ✅ Modificare foto
+
+    ✅ Creare loghi
+
+    ✅ Video editing automatico
+
+    ✅ Musica generativa
+
+    ✅ Scrittura creativa (storie, poesie)
+
+    ✅ Color palette generator
+
+Esempi:
+
+    "JARVIS, genera immagine: tramonto cyberpunk"
+    "JARVIS, crea logo per startup tech"
+
+💼 FINANZA AVANZATA
+
+    ✅ Portfolio crypto/azioni
+
+    ✅ Alert prezzi (compra/vendi)
+
+    ✅ Analisi tecnica automatica
+
+    ✅ News finanziarie (sentiment analysis)
+
+    ✅ Tasse/deduzioni automatiche
+
+    ✅ Investimenti automatici (robo-advisor)
+
+    ✅ Prezzo oro/argento
+
+    ✅ Tassi cambio valute
+
+Esempi:
+
+    "JARVIS, compra 0.1 BTC se scende sotto 60k"
+    "JARVIS, come va il mio portfolio?"
+
+🎤 SOCIAL MEDIA & INFLUENCER
+
+    ✅ Postare su Instagram/Twitter/TikTok
+
+    ✅ Scheduling post
+
+    ✅ Analytics follower
+
+    ✅ Trend topics
+
+    ✅ Risposte automatiche DM
+
+    ✅ Hashtag migliori
+
+    ✅ Competitor analysis
+
+Esempi:
+
+    "JARVIS, posta foto su Instagram con caption motivazionale"
+    "JARVIS, quali sono i trend oggi?"
+
+🚗 AUTO & VEICOLI
+
+    ✅ Tracciare auto (GPS)
+
+    ✅ Sbloccare/bloccare auto (Tesla, BMW)
+
+    ✅ Clima auto remoto
+
+    ✅ Livello carburante
+
+    ✅ Manutenzione programmata
+
+    ✅ Multe/bollo auto
+
+    ✅ Assicurazione scadenze
+
+    ✅ Prezzi benzina stazioni vicine
+
+Esempi:
+
+    "JARVIS, sblocca la macchina"
+    "JARVIS, preriscalda l'auto"
+    "JARVIS, dove ho parcheggiato?"
+
+📰 NEWS & INFORMAZIONE
+
+    ✅ News personalizzate (topic preferiti)
+
+    ✅ Fact-checking automatico
+
+    ✅ Riassunti articoli
+
+    ✅ Podcast recommendation
+
+    ✅ Wikipedia voce
+
+    ✅ Breaking news alert
+
+    ✅ RSS feed custom
+
+Esempi:
+
+    "JARVIS, ultime news tecnologia"
+    "JARVIS, riassunto notizie oggi"
+
+🎯 PRODUTTIVITÀ ESTREMA
+
+    ✅ Pomodoro timer
+
+    ✅ Distraction blocking
+
+    ✅ Time tracking automatico
+
+    ✅ Meeting notes (trascrizione auto)
+
+    ✅ Action items da meeting
+
+    ✅ Email auto-categorization
+
+    ✅ Smart scheduling (trova slot liberi)
+
+Esempi:
+
+    "JARVIS, blocca distrazioni per 2 ore"
+    "JARVIS, trova slot meeting con Mario"
