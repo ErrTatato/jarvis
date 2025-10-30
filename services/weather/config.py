@@ -1,15 +1,7 @@
-"""services/weather/config.py - Configurazione servizio meteo"""
 import os
 
-# ✅ Prende dalla variabile di ambiente (NON hardcoded!)
-WEATHER_API_KEY = os.environ.get("WEATHER_API_KEY")
-
-# Se non impostata, avvisa
-if not WEATHER_API_KEY:
-    print("[WEATHER] ⚠️  WEATHER_API_KEY non configurata!")
-    print("[WEATHER] Imposta: export WEATHER_API_KEY='tua_chiave'")
-
-WEATHER_API_URL = "http://api.weatherapi.com/v1/current.json"
-WEATHER_LANGUAGE = "it"
-WEATHER_AQI_ENABLED = True
-WEATHER_TIMEOUT = 10
+WEATHER_API_KEY = os.environ.get("WEATHER_API_KEY", "")
+WEATHER_API_URL = os.environ.get("WEATHER_API_URL", "https://api.weatherapi.com/v1")
+WEATHER_TIMEOUT = int(os.environ.get("WEATHER_TIMEOUT", "10"))
+WEATHER_LANGUAGE = os.environ.get("WEATHER_LANGUAGE", "it")
+WEATHER_AQI_ENABLED = os.environ.get("WEATHER_AQI_ENABLED", "true").lower() == "true"

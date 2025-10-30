@@ -1,14 +1,10 @@
 # core/jarvis_ai.py
 import os
-import asyncio
 from typing import Optional, AsyncGenerator, Tuple
-
-# Intent parser locale (device/meteo)
-from core.intent_router import parse_intent
 
 # Client REST per il gateway FastAPI (device + weather)
 from core.actions_client import (
-    # Device
+    # Device (richiedono device_id)
     device_flashlight, device_battery, device_wifi, device_bluetooth, device_airplane,
     device_volume, device_screenshot, device_screenrecord, device_notifications,
     device_sms, device_whatsapp, device_call, device_call_end, device_camera_shot,
@@ -16,11 +12,17 @@ from core.actions_client import (
     wx_current, wx_hourly, wx_daily, wx_aqi, wx_alerts
 )
 
-# LLM (solo fallback)
+# Intent parser locale per comandi rapidi (fallback se il modello non invoca tool)
+from core.intent_router import parse_intent
+
+# LLM (function-calling per capire frasi libere)
 try:
     from openai import AsyncOpenAI
 except ImportError:
     AsyncOpenAI = None
+
+
+PRIMARY_DEVICE_ID = os.environ.get("JARVIS_PRIMARY_DEVICE_ID", "phone-001")
 
 
 class JarvisAI:
@@ -29,154 +31,215 @@ class JarvisAI:
         self.openai_model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
         self.client = AsyncOpenAI(api_key=self.openai_api_key) if (self.openai_api_key and AsyncOpenAI) else None
 
+        # Istruzioni concise: capisci la richiesta, scegli l'azione, chiedi argomenti mancanti solo se indispensabili.
         self.system_prompt = (
-            "Sei JARVIS, assistente AI di Tony Stark.\n"
-            "Parla italiano, risposte brevi e professionali (1-2 frasi), chiamandomi 'signore'."
+            "Sei JARVIS, assistente AI di Tony Stark. Capisci l'italiano colloquiale e trasformi le richieste in azioni.\n"
+            "Se Ã¨ appropriato, invoca funzioni per controllare smartphone e meteo; risposte brevi (1â€‘2 frasi), chiamandomi 'signore'."
         )
+
+    def tools(self):
+        # Strumenti che il modello puÃ² invocare per decidere l'azione corretta in linguaggio naturale.
+        return [
+            {"type":"function","function":{"name":"battery_status","description":"Leggi stato batteria del telefono"}},
+            {"type":"function","function":{"name":"wifi_toggle","description":"Attiva o disattiva il Wiâ€‘Fi","parameters":{"type":"object","properties":{"state":{"type":"boolean"}},"required":["state"]}}},
+            {"type":"function","function":{"name":"bt_toggle","description":"Attiva o disattiva il Bluetooth","parameters":{"type":"object","properties":{"state":{"type":"boolean"}},"required":["state"]}}},
+            {"type":"function","function":{"name":"airplane_toggle","description":"Attiva o disattiva la modalitÃ  aereo","parameters":{"type":"object","properties":{"state":{"type":"boolean"}},"required":["state"]}}},
+            {"type":"function","function":{"name":"volume_set","description":"Imposta il volume multimediale (0â€‘15)","parameters":{"type":"object","properties":{"level":{"type":"integer","minimum":0,"maximum":15}},"required":["level"]}}},
+            {"type":"function","function":{"name":"flashlight","description":"Accendi/spegni la torcia","parameters":{"type":"object","properties":{"state":{"type":"boolean"}},"required":["state"]}}},
+            {"type":"function","function":{"name":"screenshot","description":"Esegui uno screenshot"}},
+            {"type":"function","function":{"name":"screenrecord","description":"Registra lo schermo (secondi)","parameters":{"type":"object","properties":{"duration_sec":{"type":"integer","minimum":1,"maximum":180}},"required":["duration_sec"]}}},
+            {"type":"function","function":{"name":"notifications_read","description":"Leggi le ultime notifiche"}},
+            {"type":"function","function":{"name":"sms_send","description":"Invia un SMS","parameters":{"type":"object","properties":{"phone":{"type":"string"},"message":{"type":"string"}},"required":["phone","message"]}}},
+            {"type":"function","function":{"name":"whatsapp_send","description":"Invia un messaggio WhatsApp","parameters":{"type":"object","properties":{"phone":{"type":"string"},"message":{"type":"string"}},"required":["phone","message"]}}},
+            {"type":"function","function":{"name":"call_start","description":"Avvia una chiamata","parameters":{"type":"object","properties":{"phone":{"type":"string"}},"required":["phone"]}}},
+            {"type":"function","function":{"name":"call_end","description":"Termina la chiamata in corso"}},
+            {"type":"function","function":{"name":"camera_shot","description":"Scatta una foto con la fotocamera"}},
+            # Weather
+            {"type":"function","function":{"name":"weather_now","description":"Meteo attuale","parameters":{"type":"object","properties":{"city":{"type":"string"}}}}},
+            {"type":"function","function":{"name":"weather_hourly","description":"Meteo orario","parameters":{"type":"object","properties":{"city":{"type":"string"},"hours":{"type":"integer","minimum":1,"maximum":48}}}}},
+            {"type":"function","function":{"name":"weather_daily","description":"Meteo giornaliero","parameters":{"type":"object","properties":{"city":{"type":"string"},"days":{"type":"integer","minimum":1,"maximum":7}}}}},
+        ]
 
     async def handle_text(self, text: str) -> str:
         """
-        Entry point: prima prova intent locale (device/meteo), poi fallback al modello.
-        Ritorna testo pronto per TTS.
+        Flusso: prova prima con function-calling (NL â†’ azione). Se non vengono invocati tool,
+        prova l'intent parser locale; infine, fallback risposta LLM.
         """
+        # 1) Function-calling
+        fc = await self._try_function_calling(text)
+        if fc:
+            return fc
+
+        # 2) Intent parser locale (backup)
         local = await self._handle_intent_or_none(text)
         if local:
             return local
 
-        if self.client:
-            return await self._llm_reply(text)
+        # 3) Fallback generativo
+        return await self._llm_reply(text)
 
-        return "Al momento non posso rispondere con il modello, signore."
-
-    async def _handle_intent_or_none(self, text: str) -> Optional[str]:
-        intent = parse_intent((text or "").strip())
-        if not intent:
+    async def _try_function_calling(self, text: str) -> Optional[str]:
+        if not self.client:
             return None
+        messages = [{"role":"system","content":self.system_prompt},{"role":"user","content":text}]
+        resp = await self.client.chat.completions.create(
+            model=self.openai_model,
+            messages=messages,
+            tools=self.tools(),
+            tool_choice="auto",
+            temperature=0.4,
+            max_tokens=120
+        )
+        msg = resp.choices[0].message
+        tool_calls = getattr(msg, "tool_calls", None)
+        if not tool_calls:
+            return None
+        # Esegui la prima tool call rilevante
+        tc = tool_calls[0]
+        name = tc.function.name
+        import json
+        args = json.loads(tc.function.arguments or "{}")
+        return await self._dispatch(name, args)
 
-        name = intent["name"]
-        args = intent.get("args", {})
+    async def _dispatch(self, name: str, args: dict) -> str:
+        d = PRIMARY_DEVICE_ID
 
+        # ===== DEVICE via hub remoto =====
         try:
-            # ===== DEVICE =====
-            if name == "flashlight_on":
-                res = await device_flashlight(True)
-                return "Torcia accesa." if res.get("status") == "success" else "Non ci sono riuscito."
-            if name == "flashlight_off":
-                res = await device_flashlight(False)
-                return "Torcia spenta." if res.get("status") == "success" else "Non ci sono riuscito."
-
             if name == "battery_status":
-                res = await device_battery()
-                if res.get("status") == "success":
-                    lvl = res["battery"].get("level")
-                    if lvl is not None:
-                        return f"La batteria è al {lvl} per cento."
-                return "Non riesco a leggere la batteria."
+                r = await device_battery(d)
+                lvl = (r.get("data") or {}).get("level") or (r.get("battery") or {}).get("level")
+                return f"La batteria Ã¨ al {lvl} per cento." if lvl is not None else "Non riesco a leggere la batteria."
 
-            if name == "wifi_on":
-                res = await device_wifi(True)
-                return "WiFi attivato." if res.get("status") == "success" else "Non ci sono riuscito."
-            if name == "wifi_off":
-                res = await device_wifi(False)
-                return "WiFi disattivato." if res.get("status") == "success" else "Non ci sono riuscito."
+            if name == "wifi_toggle":
+                r = await device_wifi(d, bool(args["state"]))
+                return "WiFi attivato." if r.get("status") == "success" else "Non ci sono riuscito."
 
-            if name == "bt_on":
-                res = await device_bluetooth(True)
-                return "Bluetooth attivato." if res.get("status") == "success" else "Non ci sono riuscito."
-            if name == "bt_off":
-                res = await device_bluetooth(False)
-                return "Bluetooth disattivato." if res.get("status") == "success" else "Non ci sono riuscito."
+            if name == "bt_toggle":
+                r = await device_bluetooth(d, bool(args["state"]))
+                return "Bluetooth attivato." if r.get("status") == "success" else "Non ci sono riuscito."
 
-            if name == "airplane_on":
-                res = await device_airplane(True)
-                return "Modalità aereo attivata." if res.get("status") == "success" else "Non ci sono riuscito."
-            if name == "airplane_off":
-                res = await device_airplane(False)
-                return "Modalità aereo disattivata." if res.get("status") == "success" else "Non ci sono riuscito."
+            if name == "airplane_toggle":
+                r = await device_airplane(d, bool(args["state"]))
+                return "ModalitÃ  aereo attivata." if r.get("status") == "success" else "Operazione bloccata dalla ROM."
 
             if name == "volume_set":
                 lvl = int(args.get("level", 8))
-                res = await device_volume(lvl)
-                return f"Volume impostato a {lvl}." if res.get("status") == "success" else "Non riesco a impostare il volume."
+                r = await device_volume(d, lvl)
+                return f"Volume impostato a {lvl}." if r.get("status") == "success" else "Non riesco a impostare il volume."
+
+            if name == "flashlight":
+                r = await device_flashlight(d, bool(args["state"]))
+                return "Torcia accesa." if r.get("status") == "success" and args["state"] else \
+                       ("Torcia spenta." if r.get("status") == "success" else "Operazione non consentita dalla ROM.")
 
             if name == "screenshot":
-                res = await device_screenshot()
-                return "Screenshot eseguito." if res.get("status") == "success" else "Non ci sono riuscito."
+                r = await device_screenshot(d)
+                return "Screenshot eseguito." if r.get("status") == "success" else "Non ci sono riuscito."
 
             if name == "screenrecord":
-                dur = int(args.get("duration", 30))
-                res = await device_screenrecord(dur)
-                return "Registrazione schermo avviata." if res.get("status") == "success" else "Non ci sono riuscito."
+                dur = int(args.get("duration_sec", 30))
+                r = await device_screenrecord(d, dur)
+                return "Registrazione schermo avviata." if r.get("status") == "success" else "Non ci sono riuscito."
 
-            if name == "notifications":
-                res = await device_notifications()
-                if res.get("status") == "success":
-                    items = res.get("notifications", [])
-                    if not items:
-                        return "Non ci sono nuove notifiche."
-                    preview = "; ".join(items[:3])
-                    return f"Ecco le ultime notifiche: {preview}"
-                return "Non riesco a leggere le notifiche."
+            if name == "notifications_read":
+                r = await device_notifications(d)
+                items = (r.get("data") or {}).get("items") or r.get("notifications") or []
+                return "Non ci sono nuove notifiche." if not items else f"Ecco le ultime notifiche: {'; '.join(items[:3])}"
 
             if name == "sms_send":
-                phone = args.get("phone", "")
-                message = args.get("message", "")
-                res = await device_sms(phone, message)
-                return "SMS pronto all'invio." if res.get("status") == "success" else "Non ho potuto preparare l'SMS."
+                r = await device_sms(d, args.get("phone",""), args.get("message",""))
+                return "SMS inviato o pronto all'invio." if r.get("status") == "success" else "Non sono riuscito a preparare l'SMS."
 
-            if name == "wa_send":
-                phone = args.get("phone", "")
-                message = args.get("message", "")
-                res = await device_whatsapp(phone, message)
-                return "WhatsApp aperto con il messaggio." if res.get("status") == "success" else "Non sono riuscito ad aprire WhatsApp."
+            if name == "whatsapp_send":
+                r = await device_whatsapp(d, args.get("phone",""), args.get("message",""))
+                return "WhatsApp aperto con il messaggio." if r.get("status") == "success" else "Non riesco ad aprire WhatsApp."
 
             if name == "call_start":
-                phone = args.get("phone", "")
-                res = await device_call(phone)
-                return f"Sto chiamando {phone}." if res.get("status") == "success" else "Non riesco ad avviare la chiamata."
+                phone = args.get("phone","")
+                r = await device_call(d, phone)
+                return "Chiamata avviata." if r.get("status") == "success" else "Ho aperto il dialer."
 
             if name == "call_end":
-                res = await device_call_end()
-                return "Chiamata terminata." if res.get("status") == "success" else "Non riesco a terminare la chiamata."
+                r = await device_call_end(d)
+                return "Chiamata terminata." if r.get("status") == "success" else "Non riesco a terminare la chiamata."
 
             if name == "camera_shot":
-                res = await device_camera_shot()
-                return "Foto scattata." if res.get("status") == "success" else "Non sono riuscito a scattare la foto."
+                r = await device_camera_shot(d)
+                return "Foto scattata." if r.get("status") == "success" else "Non sono riuscito a scattare la foto."
 
             # ===== WEATHER =====
             if name == "weather_now":
                 city = args.get("city")
                 data = await wx_current(city=city)
                 if data.get("status") == "success":
-                    main = data["data"].get("main", {})
+                    main = (data.get("data") or {}).get("main", {})
                     temp = main.get("temp")
                     if temp is not None:
-                        target = city or "qui"
-                        return f"A {target} ci sono circa {int(round(temp))} gradi."
+                        return f"A {city or 'qui'} ci sono circa {int(round(temp))} gradi."
                 return "Non riesco a recuperare il meteo."
 
             if name == "weather_hourly":
                 city = args.get("city")
-                data = await wx_hourly(city=city, hours=12)
-                return "Ho recuperato le prossime ore di meteo." if data.get("status") == "success" else "Non riesco a recuperare il meteo orario."
+                data = await wx_hourly(city=city, hours=int(args.get("hours", 12)))
+                return "Ho recuperato il meteo orario." if data.get("status") == "success" else "Non riesco a recuperare il meteo orario."
 
             if name == "weather_daily":
                 city = args.get("city")
-                data = await wx_daily(city=city, days=7)
+                data = await wx_daily(city=city, days=int(args.get("days", 7)))
                 return "Ho recuperato la previsione dei prossimi giorni." if data.get("status") == "success" else "Non riesco a recuperare il meteo giornaliero."
 
         except Exception as e:
-            return f"C'è stato un errore nell'esecuzione del comando: {e}"
+            return f"C'Ã¨ stato un errore nell'esecuzione del comando: {e}"
 
-        return None
+        return "Richiesta non riconosciuta, signore."
+
+    async def _handle_intent_or_none(self, text: str) -> Optional[str]:
+        """
+        Intent parser locale: utile se il modello non ha invocato tool.
+        """
+        intent = parse_intent((text or "").strip())
+        if not intent:
+            return None
+        name = intent["name"]
+        args = intent.get("args", {})
+        # Riusa _dispatch mappando l'intent su tool equivalenti
+        mapping = {
+            "flashlight_on": ("flashlight", {"state": True}),
+            "flashlight_off": ("flashlight", {"state": False}),
+            "battery_status": ("battery_status", {}),
+            "wifi_on": ("wifi_toggle", {"state": True}),
+            "wifi_off": ("wifi_toggle", {"state": False}),
+            "bt_on": ("bt_toggle", {"state": True}),
+            "bt_off": ("bt_toggle", {"state": False}),
+            "airplane_on": ("airplane_toggle", {"state": True}),
+            "airplane_off": ("airplane_toggle", {"state": False}),
+            "volume_set": ("volume_set", {"level": int(args.get("level", 8))}),
+            "screenshot": ("screenshot", {}),
+            "screenrecord": ("screenrecord", {"duration_sec": int(args.get("duration", 30))}),
+            "notifications": ("notifications_read", {}),
+            "sms_send": ("sms_send", {"phone": args.get("phone",""), "message": args.get("message","")}),
+            "wa_send": ("whatsapp_send", {"phone": args.get("phone",""), "message": args.get("message","")}),
+            "call_start": ("call_start", {"phone": args.get("phone","")}),
+            "call_end": ("call_end", {}),
+            "camera_shot": ("camera_shot", {}),
+            "weather_now": ("weather_now", {"city": args.get("city")}),
+            "weather_hourly": ("weather_hourly", {"city": args.get("city"), "hours": 12}),
+            "weather_daily": ("weather_daily", {"city": args.get("city"), "days": 7}),
+        }
+        tool = mapping.get(name)
+        if not tool:
+            return None
+        tname, targs = tool
+        return await self._dispatch(tname, targs)
 
     async def _llm_reply(self, user_text: str) -> str:
         """
-        Fallback al modello (non streaming) se nessun intent locale.
+        Risposta generativa quando non c'Ã¨ azione da compiere.
         """
+        if not self.client:
+            return "Al momento non posso rispondere con il modello, signore."
         try:
-            if not self.client:
-                return "Il modello non è configurato, signore."
             messages = [
                 {"role": "system", "content": self.system_prompt},
                 {"role": "user", "content": user_text}
@@ -185,15 +248,15 @@ class JarvisAI:
                 model=self.openai_model,
                 messages=messages,
                 temperature=0.6,
-                max_tokens=120,
+                max_tokens=140,
             )
-            content = resp.choices[0].message.content.strip()
-            return content or "Non ho una risposta migliore, signore."
+            content = resp.choices[0].message.content
+            return (content or "").strip() or "Non ho una risposta migliore, signore."
         except Exception as e:
-            return f"Si è verificato un problema nel modello: {e}"
+            return f"Si Ã¨ verificato un problema nel modello: {e}"
 
 
-# Singleton per compatibilità
+# Singleton per compatibilitÃ 
 _jarvis_instance: Optional[JarvisAI] = None
 
 def get_jarvis() -> JarvisAI:
@@ -202,34 +265,25 @@ def get_jarvis() -> JarvisAI:
         _jarvis_instance = JarvisAI()
     return _jarvis_instance
 
-
 async def handle_transcription(text: str) -> str:
     """
-    Comodo per pipeline non-streaming: dato testo, ritorna risposta completa.
+    Entry point nonâ€‘streaming: testo â†’ risposta.
     """
     jarvis = get_jarvis()
     return await jarvis.handle_text(text)
 
-
-# ===== Alias richiesto dal tuo server: llm_stream =====
-# Manteniamo la firma di compatibilità: AsyncGenerator[Tuple[str, str], None]
-# Yield di ("delta", testo_parziale) e infine ("done", "")
+# Streaming compatibile con server_webrtc
 async def llm_stream(user_message: str) -> AsyncGenerator[Tuple[str, str], None]:
-    """
-    Streaming compatibile col tuo server_webrtc:
-    - Se esiste un intent locale, streamma la risposta locale in un'unica emissione.
-    - Altrimenti streamma la risposta del modello OpenAI se configurato.
-    """
     jarvis = get_jarvis()
-
-    # 1) Intent locale
+    # Prova function-calling
+    fc = await jarvis._try_function_calling(user_message or "")
+    if fc:
+        yield ("delta", fc); yield ("done",""); return
+    # Intent parser
     local = await jarvis._handle_intent_or_none(user_message or "")
     if local:
-        yield ("delta", local)
-        yield ("done", "")
-        return
-
-    # 2) Fallback modello in streaming (se disponibile)
+        yield ("delta", local); yield ("done",""); return
+    # Fallback generativo
     if jarvis.client:
         messages = [
             {"role": "system", "content": jarvis.system_prompt},
@@ -245,15 +299,9 @@ async def llm_stream(user_message: str) -> AsyncGenerator[Tuple[str, str], None]
             )
             async for chunk in stream:
                 delta = getattr(chunk.choices[0].delta, "content", None)
-                if delta:
-                    yield ("delta", delta)
-            yield ("done", "")
-            return
+                if delta: yield ("delta", delta)
+            yield ("done",""); return
         except Exception as e:
-            yield ("delta", f"Si è verificato un problema nel modello: {e}")
-            yield ("done", "")
-            return
-
-    # 3) Ultimo fallback
-    yield ("delta", "Al momento non posso rispondere con il modello, signore.")
-    yield ("done", "")
+            yield ("delta", f"Si Ã¨ verificato un problema nel modello: {e}")
+            yield ("done",""); return
+    yield ("delta", "Al momento non posso rispondere con il modello, signore."); yield ("done","")
