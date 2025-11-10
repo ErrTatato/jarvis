@@ -3,363 +3,461 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>J.A.R.V.I.S - Orb</title>
+    <title>JARVIS - AI Assistant</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { width: 100%; height: 100%; overflow: hidden; }
-        body { background: #000; display: flex; justify-content: center; align-items: center; font-family: 'Courier New', monospace; }
-        
-        #canvas { display: block; }
-        
-        .ui {
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(135deg, #0a0e27 0%, #16213e 50%, #0f3460 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+            z-index: 10;
+        }
+
+        /* ===== ORB 3D REALISTICO ===== */
+        .orb-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            perspective: 1000px;
+        }
+
+        .orb {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #1e90ff, #00a8ff 20%, #0066cc 50%, #003d99 100%);
+            box-shadow: 
+                0 0 40px rgba(30, 144, 255, 0.8),
+                0 0 80px rgba(0, 168, 255, 0.4),
+                inset -30px -30px 60px rgba(0, 0, 0, 0.3),
+                inset 20px 20px 40px rgba(255, 255, 255, 0.15);
+            animation: orbPulse 2s ease-in-out infinite, orbRotate 8s linear infinite;
+            position: relative;
+            transform-style: preserve-3d;
+        }
+
+        .orb::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.4), transparent 70%);
+            animation: orbShine 3s ease-in-out infinite;
+        }
+
+        .orb::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid rgba(30, 144, 255, 0.3);
+            box-shadow: inset 0 0 20px rgba(0, 168, 255, 0.2);
+        }
+
+        @keyframes orbPulse {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 
+                    0 0 40px rgba(30, 144, 255, 0.8),
+                    0 0 80px rgba(0, 168, 255, 0.4),
+                    inset -30px -30px 60px rgba(0, 0, 0, 0.3),
+                    inset 20px 20px 40px rgba(255, 255, 255, 0.15);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 
+                    0 0 60px rgba(30, 144, 255, 1),
+                    0 0 120px rgba(0, 168, 255, 0.6),
+                    inset -30px -30px 60px rgba(0, 0, 0, 0.3),
+                    inset 20px 20px 40px rgba(255, 255, 255, 0.2);
+            }
+        }
+
+        @keyframes orbRotate {
+            0% { filter: hue-rotate(0deg); }
+            50% { filter: hue-rotate(10deg); }
+            100% { filter: hue-rotate(0deg); }
+        }
+
+        @keyframes orbShine {
+            0%, 100% { opacity: 0.4; transform: translateX(0); }
+            50% { opacity: 0.8; transform: translateX(10px); }
+        }
+
+        .orb.listening {
+            animation: orbPulse 0.5s ease-in-out infinite, orbListening 0.3s ease-in-out infinite !important;
+        }
+
+        @keyframes orbListening {
+            0%, 100% { box-shadow: 0 0 40px rgba(30, 144, 255, 0.8), 0 0 80px rgba(0, 168, 255, 0.4); }
+            50% { box-shadow: 0 0 80px rgba(30, 144, 255, 1), 0 0 160px rgba(0, 168, 255, 0.8); }
+        }
+
+        .orb.processing {
+            animation: orbProcessing 0.2s ease-in-out infinite !important;
+        }
+
+        @keyframes orbProcessing {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.08) rotate(5deg); }
+        }
+
+        /* ===== STATUS & CONTROLS ===== */
+        .status-info {
+            text-align: center;
+            font-size: 14px;
+            color: #00a8ff;
+            min-height: 40px;
+            font-weight: 500;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            background: rgba(30, 144, 255, 0.1);
+            border: 1px solid rgba(30, 144, 255, 0.3);
+            border-radius: 30px;
+            padding: 10px 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        input[type="text"] {
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 14px;
+            width: 300px;
+            outline: none;
+        }
+
+        input[type="text"]::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        button {
+            background: linear-gradient(135deg, #1e90ff, #00a8ff);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(30, 144, 255, 0.4);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(30, 144, 255, 0.6);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .ppt-btn {
+            padding: 12px 30px;
+            font-size: 13px;
+            background: linear-gradient(135deg, #ff6b35, #f7931e);
+            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+        }
+
+        .ppt-btn:hover {
+            box-shadow: 0 6px 20px rgba(255, 107, 53, 0.6);
+        }
+
+        .ppt-btn.active {
+            background: linear-gradient(135deg, #ff3333, #cc0000);
+            animation: pptPulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes pptPulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(255, 51, 51, 0.6); }
+            50% { box-shadow: 0 0 40px rgba(255, 51, 51, 0.9); }
+        }
+
+        /* ===== OUTPUT ===== */
+        .output-box {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(30, 144, 255, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            min-width: 500px;
+            max-height: 200px;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+        }
+
+        .output-text {
+            color: #00ff88;
+            font-size: 13px;
+            line-height: 1.6;
+            font-family: 'Courier New', monospace;
+        }
+
+        .response {
+            color: #00a8ff;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(30, 144, 255, 0.2);
+        }
+
+        /* ===== PARTICLE EFFECT ===== */
+        .particles {
             position: fixed;
             width: 100%;
             height: 100%;
             top: 0;
             left: 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            align-items: center;
-            padding: 40px 20px;
-            pointer-events: none;
-            z-index: 10;
+            z-index: 1;
         }
-        
-        .status {
-            color: #64b5f6;
-            font-size: 12px;
-            text-align: center;
-            letter-spacing: 2px;
-            opacity: 0.8;
-        }
-        
-        .status.listening { color: #ffa726; }
-        .status.speaking { color: #66bb6a; }
-        
-        .text-box {
-            background: rgba(10, 20, 40, 0.9);
-            border: 2px solid rgba(100, 181, 246, 0.4);
-            border-radius: 10px;
-            padding: 20px 40px;
-            max-width: 700px;
-            text-align: center;
-            color: rgba(100, 181, 246, 0.95);
-            font-size: 14px;
-            line-height: 1.6;
-            backdrop-filter: blur(10px);
-            min-height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .text-box.speaking { 
-            color: rgba(102, 187, 106, 0.95);
-            border-color: rgba(102, 187, 106, 0.4);
-        }
-        
-        .controls {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-            pointer-events: auto;
-        }
-        
-        .talk-btn {
-            width: 120px;
-            height: 120px;
+
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: rgba(30, 144, 255, 0.5);
             border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, rgba(100, 181, 246, 0.5), rgba(33, 150, 243, 0.3), rgba(13, 71, 161, 0.2));
-            border: 3px solid rgba(100, 181, 246, 0.6);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            animation: float 20s infinite;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) translateX(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100vh) translateX(100px);
+                opacity: 0;
+            }
+        }
+
+        .status-bar {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
             font-size: 12px;
-            color: rgba(100, 181, 246, 0.8);
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: all 0.2s ease;
-            box-shadow: 0 0 30px rgba(100, 181, 246, 0.4);
+            color: rgba(255, 255, 255, 0.6);
+            text-align: right;
         }
-        
-        .talk-btn:hover {
-            box-shadow: 0 0 50px rgba(100, 181, 246, 0.6);
-            transform: scale(1.05);
+
+        .dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #00ff88;
+            margin-right: 6px;
+            animation: blink 1.5s infinite;
         }
-        
-        .talk-btn:active {
-            background: radial-gradient(circle at 30% 30%, rgba(255, 167, 38, 0.6), rgba(255, 152, 0, 0.4), rgba(230, 81, 0, 0.2));
-            border-color: rgba(255, 167, 38, 0.8);
-            box-shadow: 0 0 60px rgba(255, 167, 38, 0.8);
-            transform: scale(0.98);
-        }
-        
-        .hint {
-            color: rgba(100, 181, 246, 0.5);
-            font-size: 11px;
-            text-align: center;
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
     </style>
 </head>
 <body>
-    <canvas id="canvas"></canvas>
-    
-    <div class="ui">
-        <div class="status" id="status">JARVIS READY</div>
-        
-        <div></div>
-        
-        <div class="text-box" id="textBox">
-            Hold button to speak
+    <!-- Background particles -->
+    <div class="particles" id="particles"></div>
+
+    <!-- Main container -->
+    <div class="container">
+        <!-- 3D Orb -->
+        <div class="orb-container">
+            <div class="orb" id="orb"></div>
         </div>
-        
+
+        <!-- Status -->
+        <div class="status-info" id="status">
+            🟢 Pronto | JARVIS v2.3.0
+        </div>
+
+        <!-- Controls -->
         <div class="controls">
-            <button class="talk-btn" id="talkBtn" onmousedown="jarvis.startTalk()" onmouseup="jarvis.stopTalk()" ontouchstart="jarvis.startTalk()" ontouchend="jarvis.stopTalk()">
-                PRESS TO TALK
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="inputField" 
+                    placeholder="Digita un comando o premi SPAZIO per PTT..."
+                >
+                <button onclick="sendMessage()">Invia</button>
+            </div>
+            <button class="ppt-btn" id="pttBtn" onmousedown="startPTT()" onmouseup="endPTT()" ontouchstart="startPTT()" ontouchend="endPTT()">
+                🎙️ PTT (tieni premuto)
             </button>
-            <div class="hint">Push and hold • Release to send</div>
+        </div>
+
+        <!-- Output -->
+        <div class="output-box">
+            <div class="output-text" id="output">
+                Connessione in corso...<br>
+                Sistema pronto per ricevere comandi.
+            </div>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Status bar -->
+    <div class="status-bar">
+        <span class="dot"></span>
+        <span id="deviceStatus">Disconnesso</span>
+    </div>
+
     <script>
-        class JARVIS {
-            constructor() {
-                this.initThreeJS();
-                this.createOrb();
-                this.setupAudio();
-                this.animate();
-                this.isSpeaking = false;
-                this.isRecording = false;
-                this.audioChunks = [];
+        const ws = new WebSocket('wss://nwe-pasqualini.tail3fb552.ts.net:5000/ws/jarvis');
+        let isPTTActive = false;
+
+        // WebSocket connection
+        ws.onopen = () => {
+            log('✅ Connesso al server');
+            updateStatus('online');
+            fetch('/api/status').then(r => r.json()).then(data => {
+                const device = data.device_connected ? '🟢 Device' : '🔴 Device';
+                document.getElementById('deviceStatus').textContent = `${device} ${data.device_id}`;
+            });
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.status === 'ok') {
+                log(`🔵 JARVIS: ${data.response}`);
+                orbState('idle');
+            } else if (data.status === 'processing') {
+                orbState('processing');
+            } else if (data.status === 'error') {
+                log(`❌ Errore: ${data.message}`);
+                orbState('idle');
             }
+        };
 
-            initThreeJS() {
-                const canvas = document.getElementById('canvas');
-                this.scene = new THREE.Scene();
-                this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-                this.camera.position.z = 8;
+        ws.onclose = () => {
+            log('❌ Disconnesso dal server');
+            updateStatus('offline');
+        };
 
-                this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
-                this.renderer.setPixelRatio(window.devicePixelRatio);
-                this.renderer.setClearColor(0x000000, 0);
+        ws.onerror = (e) => {
+            log(`⚠️ Errore: ${e}`);
+        };
 
-                window.addEventListener('resize', () => {
-                    this.camera.aspect = window.innerWidth / window.innerHeight;
-                    this.camera.updateProjectionMatrix();
-                    this.renderer.setSize(window.innerWidth, window.innerHeight);
-                });
+        // UI Functions
+        function log(msg) {
+            const output = document.getElementById('output');
+            const time = new Date().toLocaleTimeString('it-IT', {hour12: false});
+            output.innerHTML += `[${time}] ${msg}<br>`;
+            output.parentElement.scrollTop = output.parentElement.scrollHeight;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('inputField');
+            const msg = input.value.trim();
+            if (!msg) return;
+            
+            log(`👤 Tu: ${msg}`);
+            orbState('processing');
+            ws.send(JSON.stringify({type: 'chat', message: msg}));
+            input.value = '';
+        }
+
+        function orbState(state) {
+            const orb = document.getElementById('orb');
+            orb.classList.remove('listening', 'processing');
+            if (state === 'listening') orb.classList.add('listening');
+            else if (state === 'processing') orb.classList.add('processing');
+        }
+
+        function updateStatus(status) {
+            const statusEl = document.getElementById('status');
+            statusEl.innerHTML = status === 'online' 
+                ? '🟢 Online | JARVIS v2.3.0'
+                : '🔴 Offline | JARVIS v2.3.0';
+        }
+
+        function startPTT() {
+            isPTTActive = true;
+            document.getElementById('pttBtn').classList.add('active');
+            orbState('listening');
+            log('🎤 PTT attivo...');
+        }
+
+        function endPTT() {
+            isPTTActive = false;
+            document.getElementById('pttBtn').classList.remove('active');
+            orbState('idle');
+            log('🎤 PTT terminato');
+        }
+
+        // Enter key
+        document.getElementById('inputField').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Spazio per PTT
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && document.activeElement !== document.getElementById('inputField')) {
+                e.preventDefault();
+                startPTT();
             }
+        });
 
-            createOrb() {
-                const geometry = new THREE.IcosahedronGeometry(2.5, 5);
-                
-                const vertexShader = `
-                    varying vec3 vNormal;
-                    varying vec3 vPosition;
-                    void main() {
-                        vNormal = normalize(normalMatrix * normal);
-                        vPosition = position;
-                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-                    }
-                `;
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') endPTT();
+        });
 
-                const fragmentShader = `
-                    uniform float time;
-                    uniform vec3 color1;
-                    uniform vec3 color2;
-                    varying vec3 vNormal;
-                    varying vec3 vPosition;
-                    void main() {
-                        vec3 viewDir = normalize(cameraPosition - vPosition);
-                        float fresnel = pow(1.0 - dot(vNormal, viewDir), 2.5);
-                        float gradient = sin(vPosition.y * 0.8 + time * 0.3) * 0.5 + 0.5;
-                        vec3 color = mix(color1, color2, gradient);
-                        vec3 final = color + fresnel * vec3(0.2, 0.4, 0.6);
-                        gl_FragColor = vec4(final, 0.85 + fresnel * 0.15);
-                    }
-                `;
-
-                this.orbMat = new THREE.ShaderMaterial({
-                    vertexShader,
-                    fragmentShader,
-                    uniforms: {
-                        time: { value: 0 },
-                        color1: { value: new THREE.Color(0x64b5f6) },
-                        color2: { value: new THREE.Color(0x0d47a1) },
-                    },
-                    transparent: true,
-                    side: THREE.DoubleSide,
-                    blending: THREE.AdditiveBlending
-                });
-
-                this.orb = new THREE.Mesh(geometry, this.orbMat);
-                this.scene.add(this.orb);
-
-                // Rings
-                for (let i = 0; i < 3; i++) {
-                    const ring = new THREE.Mesh(
-                        new THREE.TorusGeometry(3.5 + i * 0.6, 0.015, 16, 100),
-                        new THREE.MeshBasicMaterial({
-                            color: 0x64b5f6,
-                            transparent: true,
-                            opacity: 0.25 - i * 0.07,
-                            blending: THREE.AdditiveBlending
-                        })
-                    );
-                    ring.rotation.x = Math.PI / 2 + Math.random() * 0.2;
-                    ring.rotation.y = Math.random() * Math.PI;
-                    this.scene.add(ring);
-                    this.rings = this.rings || [];
-                    this.rings.push(ring);
-                }
-
-                // Lights
-                const light1 = new THREE.PointLight(0x64b5f6, 2, 30);
-                light1.position.set(5, 5, 5);
-                this.scene.add(light1);
-
-                const light2 = new THREE.PointLight(0x1976d2, 1, 20);
-                light2.position.set(-5, -5, 3);
-                this.scene.add(light2);
-            }
-
-            async setupAudio() {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-                    this.mediaRecorder = new MediaRecorder(stream);
-                    this.mediaRecorder.ondataavailable = (e) => this.audioChunks.push(e.data);
-                    this.mediaRecorder.onstop = () => this.sendAudio();
-                } catch (e) {
-                    console.error('Mic error:', e);
-                    this.setText('🚫 Microphone access denied');
-                }
-            }
-
-            startTalk() {
-                if (this.isSpeaking || this.isRecording) return;
-                this.isRecording = true;
-                this.audioChunks = [];
-                this.mediaRecorder.start();
-                this.setState('listening');
-                this.setText('🎤 Listening...');
-            }
-
-            stopTalk() {
-                if (!this.isRecording) return;
-                this.isRecording = false;
-                this.mediaRecorder.stop();
-                this.setState('idle');
-            }
-
-            async sendAudio() {
-                if (this.audioChunks.length === 0) return;
-
-                const audioBlob = new Blob(this.audioChunks, { type: 'audio/wav' });
-                this.audioChunks = [];
-                this.setState('idle');
-                this.setText('Processing...');
-
-                try {
-                    const formData = new FormData();
-                    formData.append('audio', audioBlob);
-
-                    const response = await fetch('/process_audio', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    const data = await response.json();
-
-                    if (data.status === 'success') {
-                        this.isSpeaking = true;
-                        this.setState('speaking');
-                        this.setText(data.response);
-
-                        if (data.audio) {
-                            await this.playAudio(data.audio);
-                        }
-
-                        this.isSpeaking = false;
-                        this.setState('idle');
-                        this.setText('Ready - Hold to speak');
-                    }
-                } catch (e) {
-                    console.error('Error:', e);
-                    this.setText('❌ Error');
-                    this.setState('idle');
-                }
-            }
-
-            async playAudio(base64) {
-                try {
-                    const audioData = atob(base64);
-                    const audioArray = new Uint8Array(audioData.length);
-                    for (let i = 0; i < audioData.length; i++) {
-                        audioArray[i] = audioData.charCodeAt(i);
-                    }
-                    const blob = new Blob([audioArray], { type: 'audio/wav' });
-                    const url = URL.createObjectURL(blob);
-                    const audio = new Audio(url);
-                    await audio.play();
-                } catch (e) {
-                    console.error('Audio error:', e);
-                }
-            }
-
-            setState(state) {
-                const status = document.getElementById('status');
-                const textBox = document.getElementById('textBox');
-                
-                if (state === 'listening') {
-                    status.textContent = 'LISTENING...';
-                    status.className = 'status listening';
-                    this.orbMat.uniforms.color1.value = new THREE.Color(0xffa726);
-                    this.orbMat.uniforms.color2.value = new THREE.Color(0xe65100);
-                } else if (state === 'speaking') {
-                    status.textContent = 'SPEAKING';
-                    status.className = 'status speaking';
-                    textBox.classList.add('speaking');
-                    this.orbMat.uniforms.color1.value = new THREE.Color(0x66bb6a);
-                    this.orbMat.uniforms.color2.value = new THREE.Color(0x2e7d32);
-                } else {
-                    status.textContent = 'JARVIS READY';
-                    status.className = 'status';
-                    textBox.classList.remove('speaking');
-                    this.orbMat.uniforms.color1.value = new THREE.Color(0x64b5f6);
-                    this.orbMat.uniforms.color2.value = new THREE.Color(0x0d47a1);
-                }
-            }
-
-            setText(text) {
-                document.getElementById('textBox').textContent = text;
-            }
-
-            animate() {
-                requestAnimationFrame(() => this.animate());
-
-                const time = Date.now() * 0.001;
-                this.orbMat.uniforms.time.value = time;
-
-                this.orb.rotation.y += 0.001;
-                this.orb.rotation.x = Math.sin(time * 0.2) * 0.05;
-
-                if (this.rings) {
-                    this.rings.forEach((ring, i) => {
-                        ring.rotation.z += 0.0005 * (i + 1) * (i % 2 === 0 ? 1 : -1);
-                    });
-                }
-
-                this.renderer.render(this.scene, this.camera);
+        // Particles
+        function createParticles() {
+            const container = document.getElementById('particles');
+            for (let i = 0; i < 50; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.delay = Math.random() * 20 + 's';
+                particle.style.animationDuration = (Math.random() * 10 + 20) + 's';
+                container.appendChild(particle);
             }
         }
 
-        const jarvis = new JARVIS();
+        createParticles();
+
+        // Heartbeat
+        setInterval(() => {
+            ws.send(JSON.stringify({type: 'ping'}));
+        }, 30000);
+
+        log('🤖 JARVIS - Sistema inizializzato');
     </script>
 </body>
 </html>

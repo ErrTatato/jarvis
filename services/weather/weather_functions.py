@@ -1,7 +1,6 @@
-"""services/weather/weather_functions.py - Function calling definitions"""
-
-def get_weather_function_definition():
-    """Ritorna definizione funzioni per GPT"""
+# services/weather/weather_functions.py
+def get_weather_function_definitions():
+    """Ritorna definizioni funzioni per GPT function calling"""
     return [
         {
             "type": "function",

@@ -1,8 +1,6 @@
-"""services/weather/weather_utils.py - Utility funzioni meteo"""
-
-def get_wind_description(wind_direction, wind_speed):
+# services/weather/weather_utils.py
+def get_wind_description(wind_direction: str, wind_speed: float) -> str:
     """Converte direzione vento in nome italiano"""
-    
     wind_names = {
         "N": "Tramontana", "NNE": "Tramontana", "NE": "Greco", "ENE": "Greco",
         "E": "Levante", "ESE": "Levante", "SE": "Scirocco", "SSE": "Ostro",
@@ -11,7 +9,7 @@ def get_wind_description(wind_direction, wind_speed):
     }
     
     if wind_speed < 5:
-        return "assenza quasi totale di vento"
+        intensity = "assenza quasi totale di vento"
     elif wind_speed < 12:
         intensity = "leggera brezza"
     elif wind_speed < 20:

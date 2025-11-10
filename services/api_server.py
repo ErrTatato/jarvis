@@ -1,9 +1,13 @@
-import os, ssl, logging, uvicorn
+# services/api_server.py
+import os
+import ssl
+import logging
+import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="JARVIS API", version="2.3.0")
@@ -16,6 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ===== Pydantic Models =====
 class BaseCmd(BaseModel):
     device_id: str
 
@@ -43,23 +48,24 @@ class WhatsReplyCmd(BaseCmd):
     thread_hint: str | None = None
     message: str
 
+# ===== Device Registration & WebSocket =====
 @app.post("/api/device/register")
 async def register_device_post(device_id: str):
     from services.device_hub import register_device
     register_device(device_id)
-    return {"status":"ok","device_id":device_id}
+    return {"status": "ok", "device_id": device_id}
 
 @app.get("/api/device/register")
 async def register_device_get(device_id: str = Query(...)):
     from services.device_hub import register_device
     register_device(device_id)
-    return {"status":"ok","device_id":device_id}
+    return {"status": "ok", "device_id": device_id}
 
 @app.post("/api/device/heartbeat")
 async def device_heartbeat(device_id: str):
     from services.device_hub import register_device
     register_device(device_id)
-    return {"status":"ok"}
+    return {"status": "ok"}
 
 @app.get("/api/info/connected_devices")
 async def connected():
@@ -67,20 +73,29 @@ async def connected():
     return {"devices": list_devices()}
 
 @app.websocket("/ws/device/{device_id}")
-async def ws_dev(websocket: WebSocket, device_id: str):
+async def websocket_device(websocket: WebSocket, device_id: str):
+    """WebSocket endpoint per device connesso"""
     from services.device_hub import ws_handler
     try:
         await ws_handler(websocket, device_id)
     except WebSocketDisconnect:
         pass
+    except Exception as e:
+        logger.error(f"[WS] Error: {e}")
 
+# ===== Helper funzione send_to_device =====
 async def send_to_device(device_id: str, action: str, data: dict):
     from services.device_hub import send_command, is_device_connected
     if not is_device_connected(device_id):
-        return {"status":"error","message":"device_not_connected","data":{}}
-    rep = await send_command(device_id, {"type":"command","action":action,"data":data})
-    return {"status":"success" if rep.get("ok") else "error", "data": rep.get("data", {}), "message": rep.get("error")}
+        return {"status": "error", "message": "device_not_connected", "data": {}}
+    rep = await send_command(device_id, {"type": "command", "action": action, "data": data})
+    return {
+        "status": "success" if rep.get("ok") else "error",
+        "data": rep.get("data", {}),
+        "message": rep.get("error")
+    }
 
+# ===== Device Commands =====
 @app.get("/api/device/battery")
 async def get_battery(device_id: str):
     return await send_to_device(device_id, "battery_status", {})
@@ -137,6 +152,7 @@ async def whatsapp_send(cmd: WhatsSendCmd):
 async def whatsapp_reply(cmd: WhatsReplyCmd):
     return await send_to_device(cmd.device_id, "whatsapp_reply", {"thread_hint": cmd.thread_hint, "message": cmd.message})
 
+# ===== Weather API (se disponibile) =====
 def to_float(x):
     try:
         return float(x) if x not in (None, "") else None
@@ -166,19 +182,24 @@ try:
     async def weather_alerts(city: str = None, lat: str = None, lon: str = None):
         return weather.alerts(city=city, lat=to_float(lat), lon=to_float(lon))
 except Exception as e:
-    logger.warning(f"Weather API not available: {e}")
+    logger.warning(f"[WEATHER] Not available: {e}")
 
 @app.get("/")
 async def root():
-    return {"status":"running","version":"2.3.0"}
+    return {"status": "running", "version": "2.3.0"}
 
 if __name__ == "__main__":
-    host = os.environ.get("ACTIONS_HOST","0.0.0.0"); port = int(os.environ.get("ACTIONS_PORT","8000"))
-    cert, key = "certs/cert.pem", "certs/key.pem"
+    host = os.environ.get("ACTIONS_HOST", "0.0.0.0")
+    port = int(os.environ.get("ACTIONS_PORT", "8000"))
+    cert = "certs/cert.pem"
+    key = "certs/key.pem"
+    
     if os.path.exists(cert) and os.path.exists(key):
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER); ctx.load_cert_chain(cert, key)
-        logger.info(f"Starting HTTPS server on {host}:{port}")
-        uvicorn.run("services.api_server:app", host=host, port=port, ssl_context=ctx, reload=False)
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(cert, key)
+        logger.info(f"[SSL] ✅ HTTPS enabled on {host}:{port}")
+        uvicorn.run("services.api_server:app", host=host, port=port, ssl_context=ctx, reload=False, log_level="info")
     else:
-        logger.error(f"Certificati non trovati in {cert} e {key}")
-        uvicorn.run("services.api_server:app", host=host, port=port, reload=True)
+        logger.error(f"[SSL] ❌ Certificati non trovati: {cert}, {key}")
+        logger.info(f"[HTTP] Avviando in HTTP su {host}:{port}")
+        uvicorn.run("services.api_server:app", host=host, port=port, reload=False, log_level="info")
