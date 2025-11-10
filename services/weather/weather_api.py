@@ -1,172 +1,130 @@
-# services/weather/weather_api.py
-import os
-import math
-import httpx
-from typing import Optional
+# services/weather/weather_api.py - COMPLETE WEATHER SYSTEM
+import aiohttp
+import logging
+from typing import Optional, Dict
 
-from .config import (
-    WEATHER_API_KEY,
-    WEATHER_API_URL,
-    WEATHER_TIMEOUT,
-    WEATHER_LANGUAGE,
-    WEATHER_AQI_ENABLED
-)
+logger = logging.getLogger(__name__)
 
-BASE_URL = (WEATHER_API_URL or "https://api.weatherapi.com/v1").rstrip("/")
+WEATHER_API_KEY = "1c1c57a48e3bb1e3faea6509c3fc60d5"  # OpenWeatherMap API Key
+WEATHER_API_URL = "https://api.openweathermap.org/data/2.5/weather"
+FORECAST_API_URL = "https://api.openweathermap.org/data/2.5/forecast"
 
-def _q_from(city: Optional[str], lat: Optional[float], lon: Optional[float]) -> Optional[str]:
-    if city and str(city).strip():
-        return str(city).strip()
-    if lat is not None and lon is not None:
-        return f"{lat},{lon}"
-    return None
-
-def _base_params(q: str) -> dict:
-    p = {
-        "key": WEATHER_API_KEY,
-        "q": q,
-        "lang": WEATHER_LANGUAGE or "en",
-    }
-    if WEATHER_AQI_ENABLED:
-        p["aqi"] = "yes"
-    else:
-        p["aqi"] = "no"
-    return p
-
-def current(city: Optional[str] = None, lat: Optional[float] = None, lon: Optional[float] = None, units: str = "metric"):
-    """Meteo attuale via WeatherAPI"""
+async def get_weather(city: str, unit: str = "metric") -> Dict:
+    """
+    Ottieni il meteo completo di una città
+    
+    Args:
+        city: Nome della città
+        unit: 'metric' (Celsius), 'imperial' (Fahrenheit)
+    
+    Returns:
+        Dict con temperatura, umidità, condizioni, vento, etc.
+    """
     try:
-        if not WEATHER_API_KEY:
-            return {"status": "error", "message": "WEATHER_API_KEY missing"}
-        q = _q_from(city, lat, lon)
-        if not q:
-            return {"status": "error", "message": "Missing city or coordinates"}
-        
-        url = f"{BASE_URL}/current.json"
-        params = _base_params(q)
-        
-        with httpx.Client(timeout=WEATHER_TIMEOUT or 10, verify=False) as client:
-            r = client.get(url, params=params)
-            r.raise_for_status()
-            j = r.json()
-        
-        cur = j.get("current", {}) or {}
-        temp = cur.get("temp_c")
-        if units and units.lower().startswith("imper"):
-            temp = cur.get("temp_f")
-        
-        data = {
-            "main": {"temp": temp},
-            "raw": j
+        params = {
+            "q": city,
+            "appid": WEATHER_API_KEY,
+            "units": unit,
+            "lang": "it"
         }
-        return {"status": "success", "data": data}
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.get(WEATHER_API_URL, params=params) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    # Estrai i dati principali
+                    weather_data = {
+                        "city": data.get("name"),
+                        "country": data.get("sys", {}).get("country"),
+                        "temperature": data.get("main", {}).get("temp"),
+                        "feels_like": data.get("main", {}).get("feels_like"),
+                        "temp_min": data.get("main", {}).get("temp_min"),
+                        "temp_max": data.get("main", {}).get("temp_max"),
+                        "humidity": data.get("main", {}).get("humidity"),
+                        "pressure": data.get("main", {}).get("pressure"),
+                        "description": data.get("weather", [{}])[0].get("description"),
+                        "wind_speed": data.get("wind", {}).get("speed"),
+                        "wind_deg": data.get("wind", {}).get("deg"),
+                        "clouds": data.get("clouds", {}).get("all"),
+                        "visibility": data.get("visibility"),
+                        "sunrise": data.get("sys", {}).get("sunrise"),
+                        "sunset": data.get("sys", {}).get("sunset"),
+                        "unit": unit
+                    }
+                    
+                    logger.info(f"[WEATHER] ✅ Weather for {city}: {weather_data['temperature']}°")
+                    return weather_data
+                else:
+                    logger.error(f"[WEATHER] API error: {response.status}")
+                    return {"error": f"Weather API error: {response.status}"}
+    
     except Exception as e:
-        return {"status": "error", "message": f"WeatherAPI current error: {e}"}
+        logger.error(f"[WEATHER] Error: {e}")
+        return {"error": str(e)}
 
-def hourly(city: Optional[str] = None, lat: Optional[float] = None, lon: Optional[float] = None, hours: int = 48, units: str = "metric"):
-    """Previsioni orarie"""
+async def get_forecast(city: str, unit: str = "metric", days: int = 5) -> Dict:
+    """
+    Ottieni il forecast di 5 giorni
+    
+    Args:
+        city: Nome della città
+        unit: 'metric' (Celsius), 'imperial' (Fahrenheit)
+        days: Numero di giorni (default 5)
+    
+    Returns:
+        Dict con forecast per i giorni successivi
+    """
     try:
-        if not WEATHER_API_KEY:
-            return {"status": "error", "message": "WEATHER_API_KEY missing"}
-        q = _q_from(city, lat, lon)
-        if not q:
-            return {"status": "error", "message": "Missing city or coordinates"}
+        params = {
+            "q": city,
+            "appid": WEATHER_API_KEY,
+            "units": unit,
+            "lang": "it",
+            "cnt": days * 8  # 8 forecasts al giorno
+        }
         
-        days = max(1, min(10, math.ceil(max(1, int(hours)) / 24)))
-        url = f"{BASE_URL}/forecast.json"
-        params = _base_params(q)
-        params["days"] = days
-        
-        with httpx.Client(timeout=WEATHER_TIMEOUT or 10, verify=False) as client:
-            r = client.get(url, params=params)
-            r.raise_for_status()
-            j = r.json()
-        
-        want = max(1, int(hours))
-        collected = []
-        for day in (j.get("forecast", {}) or {}).get("forecastday", []) or []:
-            for h in day.get("hour", []) or []:
-                collected.append(h)
-                if len(collected) >= want:
-                    break
-            if len(collected) >= want:
-                break
-        
-        return {"status": "success", "data": {"hourly": collected, "raw": j}}
+        async with aiohttp.ClientSession() as session:
+            async with session.get(FORECAST_API_URL, params=params) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    forecast_list = []
+                    for item in data.get("list", []):
+                        forecast_list.append({
+                            "datetime": item.get("dt_txt"),
+                            "temperature": item.get("main", {}).get("temp"),
+                            "description": item.get("weather", [{}])[0].get("description"),
+                            "humidity": item.get("main", {}).get("humidity"),
+                            "wind_speed": item.get("wind", {}).get("speed"),
+                            "rain_prob": item.get("pop", 0) * 100
+                        })
+                    
+                    logger.info(f"[FORECAST] ✅ Forecast for {city}: {len(forecast_list)} entries")
+                    return {"city": city, "forecasts": forecast_list}
+                else:
+                    logger.error(f"[FORECAST] API error: {response.status}")
+                    return {"error": f"Forecast API error: {response.status}"}
+    
     except Exception as e:
-        return {"status": "error", "message": f"WeatherAPI hourly error: {e}"}
+        logger.error(f"[FORECAST] Error: {e}")
+        return {"error": str(e)}
 
-def daily(city: Optional[str] = None, lat: Optional[float] = None, lon: Optional[float] = None, days: int = 7, units: str = "metric"):
-    """Previsioni giornaliere"""
-    try:
-        if not WEATHER_API_KEY:
-            return {"status": "error", "message": "WEATHER_API_KEY missing"}
-        q = _q_from(city, lat, lon)
-        if not q:
-            return {"status": "error", "message": "Missing city or coordinates"}
-        
-        days = max(1, min(10, int(days)))
-        url = f"{BASE_URL}/forecast.json"
-        params = _base_params(q)
-        params["days"] = days
-        
-        with httpx.Client(timeout=WEATHER_TIMEOUT or 10, verify=False) as client:
-            r = client.get(url, params=params)
-            r.raise_for_status()
-            j = r.json()
-        
-        daily_list = (j.get("forecast", {}) or {}).get("forecastday", []) or []
-        return {"status": "success", "data": {"daily": daily_list, "raw": j}}
-    except Exception as e:
-        return {"status": "error", "message": f"WeatherAPI daily error: {e}"}
-
-def air_quality(lat: float, lon: float):
-    """Qualità dell'aria"""
-    try:
-        if not WEATHER_API_KEY:
-            return {"status": "error", "message": "WEATHER_API_KEY missing"}
-        q = _q_from(None, lat, lon)
-        if not q:
-            return {"status": "error", "message": "Missing coordinates"}
-        
-        url = f"{BASE_URL}/current.json"
-        params = _base_params(q)
-        params["aqi"] = "yes"
-        
-        with httpx.Client(timeout=WEATHER_TIMEOUT or 10, verify=False) as client:
-            r = client.get(url, params=params)
-            r.raise_for_status()
-            j = r.json()
-        
-        aqi = (j.get("current", {}) or {}).get("air_quality", {}) or {}
-        return {"status": "success", "data": {"air_quality": aqi, "raw": j}}
-    except Exception as e:
-        return {"status": "error", "message": f"WeatherAPI AQI error: {e}"}
-
-def alerts(city: Optional[str] = None, lat: Optional[float] = None, lon: Optional[float] = None):
-    """Allerte meteo"""
-    try:
-        if not WEATHER_API_KEY:
-            return {"status": "error", "message": "WEATHER_API_KEY missing"}
-        q = _q_from(city, lat, lon)
-        if not q:
-            return {"status": "error", "message": "Missing city or coordinates"}
-        
-        url = f"{BASE_URL}/forecast.json"
-        params = _base_params(q)
-        params["days"] = 1
-        params["alerts"] = "yes"
-        
-        with httpx.Client(timeout=WEATHER_TIMEOUT or 10, verify=False) as client:
-            r = client.get(url, params=params)
-            r.raise_for_status()
-            j = r.json()
-        
-        al = j.get("alerts")
-        return {"status": "success", "data": {"alerts": al, "raw": j}}
-    except Exception as e:
-        return {"status": "error", "message": f"WeatherAPI alerts error: {e}"}
-
-def get_weather(city_name: str):
-    """Wrapper legacy"""
-    return current(city=city_name)
+def format_weather_response(weather: Dict, unit: str = "metric") -> str:
+    """Formatta il meteo in stringa leggibile"""
+    if "error" in weather:
+        return f"Errore nel recupero del meteo: {weather['error']}"
+    
+    temp_symbol = "°C" if unit == "metric" else "°F"
+    
+    response = f"""
+Meteo a {weather.get('city', 'N/A')}, {weather.get('country', 'N/A')}:
+🌡️  Temperatura: {weather.get('temperature', 'N/A')}{temp_symbol}
+🤔 Percepita: {weather.get('feels_like', 'N/A')}{temp_symbol}
+📊 Min/Max: {weather.get('temp_min', 'N/A')}{temp_symbol} / {weather.get('temp_max', 'N/A')}{temp_symbol}
+💨 Vento: {weather.get('wind_speed', 'N/A')} m/s ({weather.get('wind_deg', 'N/A')}°)
+💧 Umidità: {weather.get('humidity', 'N/A')}%
+☁️  Copertura nuvolosa: {weather.get('clouds', 'N/A')}%
+📋 Condizioni: {weather.get('description', 'N/A')}
+"""
+    return response.strip()

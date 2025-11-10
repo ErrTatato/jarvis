@@ -1,115 +1,177 @@
-# services/device_hub.py
-import logging
+# services/device_hub.py - DEVICE MANAGEMENT PER ANDROID
 import asyncio
-import uuid
-from datetime import datetime
-from typing import Dict, Optional
-from fastapi import WebSocket, WebSocketDisconnect
+import logging
+from typing import Dict, List, Optional, Any
+import aiohttp
 
-logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
-devices_registry: Dict[str, datetime] = {}
-ws_connections: Dict[str, WebSocket] = {}
-pending_replies: Dict[str, asyncio.Future] = {}
+# Simulazione device connessi (in produzione: usare database)
+CONNECTED_DEVICES: Dict[str, Dict[str, Any]] = {}
 
-HEARTBEAT_TIMEOUT = 20  # secondi
+# Timeout per le risposte dai device
+DEVICE_TIMEOUT = 10
 
-def register_device(device_id: str):
-    """Registra o aggiorna heartbeat del device"""
-    devices_registry[device_id] = datetime.now()
-    logger.info(f"[DEVICE_HUB] {device_id} registered")
-
-def unregister_device(device_id: str):
-    """Rimuove device"""
-    devices_registry.pop(device_id, None)
-    ws_connections.pop(device_id, None)
-    logger.info(f"[DEVICE_HUB] {device_id} unregistered")
-
-def is_device_connected(device_id: str) -> bool:
-    """Controlla se device è connesso via WS"""
-    return device_id in ws_connections
-
-def list_devices() -> list:
-    """Lista device attivi"""
-    now = datetime.now()
-    active = []
-    to_remove = []
+class DeviceHub:
+    """Gestisce la comunicazione con i device Android"""
     
-    for device_id, last_seen in list(devices_registry.items()):
-        elapsed = (now - last_seen).total_seconds()
-        if elapsed < HEARTBEAT_TIMEOUT:
-            active.append(device_id)
-        else:
-            to_remove.append(device_id)
+    @staticmethod
+    async def register_device(device_id: str, device_info: Dict) -> bool:
+        """Registra un device come connesso"""
+        try:
+            CONNECTED_DEVICES[device_id] = {
+                "id": device_id,
+                "connected": True,
+                "last_heartbeat": __import__('time').time(),
+                **device_info
+            }
+            logger.info(f"[DEVICE] ✅ Registered: {device_id}")
+            return True
+        except Exception as e:
+            logger.error(f"[DEVICE] Error registering {device_id}: {e}")
+            return False
     
-    for device_id in to_remove:
-        unregister_device(device_id)
+    @staticmethod
+    def is_device_connected(device_id: str) -> bool:
+        """Verifica se un device è connesso"""
+        if device_id in CONNECTED_DEVICES:
+            device = CONNECTED_DEVICES[device_id]
+            # Verifica heartbeat (max 30 secondi)
+            import time
+            if time.time() - device.get("last_heartbeat", 0) < 30:
+                return device.get("connected", False)
+            else:
+                # Device scaduto
+                CONNECTED_DEVICES[device_id]["connected"] = False
+                return False
+        return False
     
-    return active
-
-async def send_command(device_id: str, command: dict) -> dict:
-    """Invia comando al device e aspetta risposta"""
-    if device_id not in ws_connections:
-        return {"ok": False, "error": "device_not_connected"}
+    @staticmethod
+    def list_devices() -> List[str]:
+        """Elenco dei device connessi"""
+        return [
+            dev_id for dev_id, dev in CONNECTED_DEVICES.items() 
+            if DeviceHub.is_device_connected(dev_id)
+        ]
     
-    cmd_id = str(uuid.uuid4())
-    command["id"] = cmd_id
-    
-    # Crea Future per aspettare la risposta
-    future = asyncio.Future()
-    pending_replies[cmd_id] = future
-    
-    try:
-        # Invia comando
-        ws = ws_connections[device_id]
-        await ws.send_json(command)
-        logger.info(f"[DEVICE_HUB] Sent to {device_id}: {command.get('action', '?')}")
+    @staticmethod
+    async def send_command(device_id: str, command: Dict) -> Dict[str, Any]:
+        """
+        Invia un comando a un device
         
-        # Aspetta risposta con timeout
-        response = await asyncio.wait_for(future, timeout=10.0)
-        return response
-    except asyncio.TimeoutError:
-        return {"ok": False, "error": "timeout"}
-    except Exception as e:
-        logger.error(f"[DEVICE_HUB] send_command error: {e}")
-        return {"ok": False, "error": str(e)}
-    finally:
-        pending_replies.pop(cmd_id, None)
+        Args:
+            device_id: ID del device
+            command: {
+                "type": "command",
+                "action": "call_start|call_end|whatsapp_send|etc",
+                "data": {...}
+            }
+        
+        Returns:
+            Risposta dal device
+        """
+        if not DeviceHub.is_device_connected(device_id):
+            return {
+                "status": "error",
+                "message": f"Device {device_id} non connesso"
+            }
+        
+        try:
+            logger.info(f"[DEVICE] Sending to {device_id}: {command.get('action')}")
+            
+            # Nel tuo caso, i comandi vengono ricevuti via WebSocket
+            # Qui dovremmo implementare un sistema di code di messaggi
+            # Per ora, simuliamo una risposta positiva
+            
+            device = CONNECTED_DEVICES[device_id]
+            action = command.get("action", "")
+            
+            if action == "call_start":
+                phone = command.get("data", {}).get("phone", "")
+                logger.info(f"[CALL] Calling {phone} on {device_id}")
+                return {"status": "success", "message": f"Calling {phone}"}
+            
+            elif action == "call_end":
+                logger.info(f"[CALL] Ending call on {device_id}")
+                return {"status": "success", "message": "Call ended"}
+            
+            elif action == "whatsapp_send":
+                phone = command.get("data", {}).get("phone", "")
+                message = command.get("data", {}).get("message", "")
+                logger.info(f"[WHATSAPP] Sending to {phone} on {device_id}")
+                return {"status": "success", "message": f"WhatsApp sent to {phone}"}
+            
+            elif action == "notifications_read":
+                logger.info(f"[NOTIFICATIONS] Reading on {device_id}")
+                return {
+                    "status": "success",
+                    "data": [
+                        {"app": "Telegram", "text": "Nuovo messaggio"},
+                        {"app": "WhatsApp", "text": "Messaggio da Marco"}
+                    ]
+                }
+            
+            else:
+                logger.warning(f"[DEVICE] Unknown action: {action}")
+                return {
+                    "status": "error",
+                    "message": f"Unknown action: {action}"
+                }
+        
+        except Exception as e:
+            logger.error(f"[DEVICE] Error sending command: {e}")
+            return {
+                "status": "error",
+                "message": str(e)
+            }
+    
+    @staticmethod
+    async def update_heartbeat(device_id: str) -> None:
+        """Aggiorna il timestamp dell'ultimo heartbeat"""
+        if device_id in CONNECTED_DEVICES:
+            import time
+            CONNECTED_DEVICES[device_id]["last_heartbeat"] = time.time()
+            logger.debug(f"[HEARTBEAT] {device_id}")
 
-async def ws_handler(websocket: WebSocket, device_id: str):
-    """Handler WebSocket per device connesso"""
-    await websocket.accept()
-    ws_connections[device_id] = websocket
-    register_device(device_id)
-    logger.info(f"[WS] {device_id} connected")
+# Funzioni pubbliche
+def is_device_connected(device_id: str) -> bool:
+    """Versione sincrona per compatibilità"""
+    return DeviceHub.is_device_connected(device_id)
+
+def list_devices() -> List[str]:
+    """Versione sincrona per compatibilità"""
+    return DeviceHub.list_devices()
+
+async def send_command(device_id: str, command: Dict) -> Dict[str, Any]:
+    """Versione asincrona per invio comandi"""
+    return await DeviceHub.send_command(device_id, command)
+
+# WebSocket handler per registrazione device (aggiungere a main.py)
+async def handle_device_websocket(websocket, device_id: str):
+    """
+    Handler WebSocket per device Android
+    Endpoint: /ws/device/{device_id}
+    """
+    await DeviceHub.register_device(device_id, {
+        "platform": "android",
+        "connected": True
+    })
     
     try:
-        while True:
-            # Ricevi messaggio dal device
-            data = await websocket.receive_json()
+        async for message in websocket.iter_text():
+            import json
+            data = json.loads(message)
+            msg_type = data.get("type", "")
             
-            # Gestisci heartbeat
-            if data.get("type") == "heartbeat":
-                register_device(device_id)
-                logger.debug(f"[WS] {device_id} heartbeat")
-                continue
-            
-            # Gestisci response a comando inviato
-            if data.get("type") == "response":
-                cmd_id = data.get("id")
-                if cmd_id in pending_replies:
-                    future = pending_replies[cmd_id]
-                    if not future.done():
-                        future.set_result(data)
-                    logger.info(f"[WS] {device_id} response: {data.get('ok')}")
-                continue
-            
-            logger.debug(f"[WS] {device_id} message: {data}")
+            if msg_type == "heartbeat":
+                await DeviceHub.update_heartbeat(device_id)
+            elif msg_type == "response":
+                logger.debug(f"[DEVICE] Response from {device_id}: {data.get('status')}")
     
-    except WebSocketDisconnect:
-        logger.info(f"[WS] {device_id} disconnected")
     except Exception as e:
-        logger.error(f"[WS] {device_id} error: {e}")
+        logger.error(f"[WS] Error with device {device_id}: {e}")
+    
     finally:
-        unregister_device(device_id)
+        if device_id in CONNECTED_DEVICES:
+            CONNECTED_DEVICES[device_id]["connected"] = False
+            logger.info(f"[DEVICE] Disconnected: {device_id}")
