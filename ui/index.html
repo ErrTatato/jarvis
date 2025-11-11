@@ -35,7 +35,7 @@
             50% { transform: scale(1.08); }
         }
         .status-info { text-align: center; font-size: 14px; color: #00a8ff; min-height: 40px; }
-        .controls { display: flex; gap: 15px; align-items: center; }
+        .controls { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; justify-content: center; }
         .input-group {
             display: flex; gap: 10px;
             background: rgba(30, 144, 255, 0.1); border: 1px solid rgba(30, 144, 255, 0.3);
@@ -129,45 +129,88 @@
 
     <script>
         let ws = null;
+        const wsUrl = 'wss://nwe-pasqualini.tail3fb552.ts.net:5000/ws/jarvis';
+        const apiUrl = 'https://nwe-pasqualini.tail3fb552.ts.net:5000';
 
         function connect() {
-            const wsUrl = 'wss://nwe-pasqualini.tail3fb552.ts.net:5000/ws/jarvis';
-            ws = new WebSocket(wsUrl);
+            try {
+                console.log('[WS] Attempting to connect to:', wsUrl);
+                ws = new WebSocket(wsUrl);
 
-            ws.onopen = () => {
-                log('✅ Connesso a JARVIS', 'system');
-                document.getElementById('status').innerHTML = '🟢 Online | JARVIS v2.3.0';
-                document.getElementById('sendBtn').disabled = false;
-                
-                // Fetch device status
-                fetch('https://nwe-pasqualini.tail3fb552.ts.net:5000/api/status')
-                    .then(r => r.json())
-                    .then(data => {
-                        const device = data.device_connected ? '🟢 Device' : '🔴 Device';
-                        document.getElementById('deviceStatus').textContent = `${device} ${data.device_id}`;
-                    })
-                    .catch(e => {
-                        document.getElementById('deviceStatus').textContent = '⚠️ Device status unavailable';
-                    });
-            };
+                ws.onopen = () => {
+                    console.log('[WS] ✅ Connected');
+                    log('✅ Connesso a JARVIS', 'system');
+                    document.getElementById('status').innerHTML = '🟢 Online | JARVIS v2.3.0';
+                    document.getElementById('sendBtn').disabled = false;
+                    document.getElementById('inputField').disabled = false;
+                    
+                    // Fetch device status
+                    fetch(`${apiUrl}/api/status`)
+                        .then(r => r.json())
+                        .then(data => {
+                            const device = data.device_connected ? '🟢 Device' : '🔴 Device';
+                            document.getElementById('deviceStatus').textContent = `${device} ${data.device_id || 'Unknown'}`;
+                        })
+                        .catch(e => {
+                            console.error('Device status error:', e);
+                            document.getElementById('deviceStatus').textContent = '⚠️ Device status unavailable';
+                        });
+                };
 
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                if (data.status === 'ok') {
-                    log(data.response, 'assistant');
-                } else if (data.status === 'processing') {
-                    document.getElementById('orb').classList.add('processing');
-                } else if (data.status === 'error') {
-                    log('❌ ' + data.message, 'system');
-                }
-                document.getElementById('orb').classList.remove('processing');
-            };
+                ws.onmessage = (event) => {
+                    console.log('[WS] Message received:', event.data);
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('[WS] Parsed data:', data);
+                        
+                        if (data.status === 'ok' && data.response) {
+                            log(data.response, 'assistant');
+                            document.getElementById('orb').classList.remove('processing');
+                        } else if (data.status === 'processing') {
+                            document.getElementById('orb').classList.add('processing');
+                        } else if (data.status === 'error') {
+                            log('❌ ' + (data.message || 'Unknown error'), 'system');
+                            document.getElementById('orb').classList.remove('processing');
+                        } else if (data.text) {
+                            log(data.text, 'assistant');
+                            document.getElementById('orb').classList.remove('processing');
+                        } else if (data.response) {
+                            log(data.response, 'assistant');
+                            document.getElementById('orb').classList.remove('processing');
+                        }
+                    } catch (e) {
+                        console.error('[WS] Parse error:', e);
+                        try {
+                            log('📤 ' + event.data, 'assistant');
+                        } catch (e2) {
+                            log('Response received', 'system');
+                        }
+                    }
+                };
 
-            ws.onclose = () => {
-                log('❌ Disconnesso da JARVIS', 'system');
-                document.getElementById('status').innerHTML = '🔴 Offline | JARVIS v2.3.0';
-                document.getElementById('sendBtn').disabled = true;
-            };
+                ws.onerror = (error) => {
+                    console.error('[WS] Error:', error);
+                    log('❌ Connection error: ' + (error.message || 'Unknown error'), 'system');
+                    document.getElementById('status').innerHTML = '🔴 Error | JARVIS v2.3.0';
+                };
+
+                ws.onclose = () => {
+                    console.log('[WS] ❌ Connection closed');
+                    log('❌ Disconnesso da JARVIS', 'system');
+                    document.getElementById('status').innerHTML = '🔴 Offline | JARVIS v2.3.0';
+                    document.getElementById('sendBtn').disabled = true;
+                    document.getElementById('inputField').disabled = true;
+                    
+                    // Attempt reconnect after 3 seconds
+                    setTimeout(() => {
+                        log('🔄 Tentativo di riconnessione...', 'system');
+                        connect();
+                    }, 3000);
+                };
+            } catch (e) {
+                console.error('[WS] Connection error:', e);
+                log('❌ Failed to connect: ' + e.message, 'system');
+            }
         }
 
         function log(msg, type = 'system') {
@@ -177,21 +220,49 @@
             const time = new Date().toLocaleTimeString('it-IT', {hour: '2-digit', minute: '2-digit'});
             messageDiv.innerHTML = '[' + time + '] ' + msg;
             output.appendChild(messageDiv);
-            document.getElementById('outputBox').scrollTop = document.getElementById('outputBox').scrollHeight;
+            const outputBox = document.getElementById('outputBox');
+            outputBox.scrollTop = outputBox.scrollHeight;
         }
 
         function sendMessage() {
             const input = document.getElementById('inputField');
             const msg = input.value.trim();
-            if (!msg || !ws || ws.readyState !== 1) return;
-            log(msg, 'user');
-            ws.send(JSON.stringify({type: 'chat', message: msg}));
-            input.value = '';
-            input.focus();
+            
+            if (!msg) {
+                log('❌ Inserisci un comando', 'system');
+                return;
+            }
+            
+            if (!ws || ws.readyState !== 1) {
+                log('❌ Non connesso a JARVIS', 'system');
+                return;
+            }
+
+            try {
+                log(msg, 'user');
+                document.getElementById('orb').classList.add('processing');
+                
+                // 🔥 FORMATO CORRETTO PER IL SERVER
+                const payload = JSON.stringify({
+                    text: msg,
+                    type: "text"
+                });
+                
+                console.log('[WS] Sending:', payload);
+                ws.send(payload);
+                input.value = '';
+                input.focus();
+            } catch (e) {
+                console.error('[WS] Send error:', e);
+                log('❌ Errore nell\'invio: ' + e.message, 'system');
+                document.getElementById('orb').classList.remove('processing');
+            }
         }
 
         document.getElementById('inputField').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendMessage();
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
         });
 
         function createParticles() {
@@ -206,6 +277,7 @@
         }
 
         createParticles();
+        console.log('[INIT] JARVIS Web Client v2.3.0 Ready');
         connect();
     </script>
 </body>

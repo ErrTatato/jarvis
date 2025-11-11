@@ -11,7 +11,7 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 # ============================================================================
 # MODELLI
 # ============================================================================
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5")
 
 # ============================================================================
 # TTS - Edge ottimizzato per JARVIS
