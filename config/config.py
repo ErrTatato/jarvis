@@ -1,62 +1,37 @@
 import os
-from dotenv import load_dotenv
-load_dotenv()  # Carica da .env
+from pathlib import Path
 
+# ===== DIRECTORIES =====
+BASE_DIR = Path(__file__).parent.parent
+UI_DIR = BASE_DIR / "ui"
+SERVICES_DIR = BASE_DIR / "services"
+CONFIG_DIR = BASE_DIR / "config"
+CERTS_DIR = BASE_DIR / "certs"
 
-# ============================================================================
-# API KEYS
-# ============================================================================
+# ===== API KEYS =====
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY", "demo")
 
-# ============================================================================
-# MODELLI
-# ============================================================================
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5")
+# ===== SERVER =====
+SERVER_HOST = "0.0.0.0"
+SERVER_PORT = 5000
+SSL_ENABLED = CERTS_DIR.exists() and (CERTS_DIR / "cert.pem").exists()
 
-# ============================================================================
-# TTS - Edge ottimizzato per JARVIS
-# ============================================================================
+# ===== MODELS =====
+CHAT_MODEL = "gpt-4o-mini"
+TTS_MODEL = "tts-1-hd"
+STT_MODEL = "whisper-1"
 
-# Voce italiana (DiegoNeural è la migliore per JARVIS)
-EDGE_TTS_VOICE = os.environ.get("EDGE_TTS_VOICE", "it-IT-DiegoNeural")
+# ===== TTS =====
+TTS_VOICE = "onyx"
+TTS_LANGUAGE = "it-IT"
 
-# Velocità: +0% = normale (JARVIS non ha fretta!)
-EDGE_TTS_RATE = os.environ.get("EDGE_TTS_RATE", "+0%")
+# ===== PROMPTS =====
+SYSTEM_PROMPT = """Sei JARVIS, il maggiordomo intelligente di Tony Stark.
+Tono sofisticato, elegante, sarcastico, italiano.
+Risposte BREVI (max 30 parole). 100% ITALIANO PURO."""
 
-# Pitch: -12Hz = molto profondo (voce autorevole tipo JARVIS)
-EDGE_TTS_PITCH = os.environ.get("EDGE_TTS_PITCH", "-12Hz")
-
-# ============================================================================
-# AUDIO
-# ============================================================================
-TARGET_SR = int(os.environ.get("TARGET_SR", "24000"))
-CHUNK_MS = int(os.environ.get("CHUNK_MS", "100"))
-
-# ============================================================================
-# SERVER
-# ============================================================================
-HOST = os.environ.get("JARVIS_HOST", "0.0.0.0")
-PORT = int(os.environ.get("JARVIS_PORT", "5000"))
-USE_HTTPS = os.environ.get("JARVIS_USE_HTTPS", "1") != "0"
-
-# ============================================================================
-# LOGGING
-# ============================================================================
-VERBOSE = os.environ.get("JARVIS_VERBOSE", "0") == "1"
-
-# ============================================================================
-# TTS SETTINGS
-# ============================================================================
-TTS_MAX_CONCURRENT = int(os.environ.get("TTS_MAX_CONCURRENT", "3"))
-TTS_RETRY_COUNT = int(os.environ.get("TTS_RETRY_COUNT", "2"))
-TTS_RETRY_BACKOFF = float(os.environ.get("TTS_RETRY_BACKOFF", "1.5"))
-
-# ============================================================================
-# SSL
-# ============================================================================
-VERIFY_SSL = os.environ.get("JARVIS_VERIFY_SSL", "1") == "1"
-
-# ============================================================================
-# WAKE WORD
-# ============================================================================
-WAKE_PATH = os.environ.get("WAKE_PATH", "/wake")
+# ===== LOGGING =====
+LOG_FORMAT = '[%(asctime)s] %(levelname)s: %(message)s'
+LOG_DATE_FORMAT = '%H:%M:%S'
+LOG_LEVEL = "INFO"

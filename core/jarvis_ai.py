@@ -1,267 +1,284 @@
+import os
+import asyncio
+import json
 import logging
-from typing import Dict, Any, Optional
-import re
-from services.weather.weather_api import WeatherAPI
+from typing import Dict, Any, Optional, Tuple
+from datetime import datetime
+import openai
+from device_handlers import DeviceCommandHandler
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("JARVIS-AI")
+
+# OpenAI Configuration
+openai.api_key = os.getenv("OPENAI_API_KEY", "your-api-key-here")
 
 class JarvisAI:
-    """Core AI per processare i comandi"""
+    """
+    JARVIS AI Assistant - Gestisce NLU, Intent Recognition, Device Actions
+    """
     
     def __init__(self):
-        self.weather_api = WeatherAPI()
+        self.model = "gpt-3.5-turbo"
         self.device_hub = None
-        self.last_contact_name = None
-        self.last_contact_phone = None
-    
-    async def process_command(self, command: str, device_id: str = None) -> Dict[str, Any]:
-        """
-        Processa un comando testuale
-        Supporta: meteo, chiamate, whatsapp, notifiche
-        """
-        try:
-            command = command.strip().lower()
-            
-            # ===== COMANDI METEO =====
-            if any(word in command for word in ["meteo", "tempo", "temperatura", "clima"]):
-                return await self._handle_weather(command)
-            
-            # ===== COMANDI TELEFONICI =====
-            elif any(word in command for word in ["chiama", "call", "telefona"]):
-                if any(word in command for word in ["chiama ", "call "]):
-                    parts = re.split(r'(chiama|call)\s+', command, flags=re.IGNORECASE)
-                    if len(parts) > 2:
-                        contact = parts[2].strip()
-                        return await self._handle_call(contact, device_id, call_type="phone")
-            
-            # ===== COMANDI WHATSAPP =====
-            elif any(word in command for word in ["whatsapp", "messaggio", "manda", "invia"]):
-                if any(word in command for word in ["whatsapp ", "messaggio "]):
-                    parts = re.split(r'(whatsapp|messaggio)\s+', command, flags=re.IGNORECASE)
-                    if len(parts) > 2:
-                        rest = parts[2].strip()
-                        return await self._handle_whatsapp(rest, device_id)
-            
-            # ===== COMANDI NOTIFICHE =====
-            elif any(word in command for word in ["notifiche", "notifica", "messaggi"]):
-                return await self._handle_notifications(device_id)
-            
-            # ===== COMANDI INFO =====
-            elif any(word in command for word in ["chi sei", "help", "aiuto", "cosa puoi fare"]):
-                return {
-                    "status": "success",
-                    "response": "Sono JARVIS, l'assistente vocale intelligente. Posso:\n"
-                                "📞 Fare chiamate: 'chiama Marco' o 'chiama +39 123 456 789'\n"
-                                "💬 Inviare messaggi WhatsApp: 'whatsapp Marco ciao'\n"
-                                "🌤️ Informazioni meteo: 'meteo Roma'\n"
-                                "📱 Leggere notifiche: 'notifiche'\n"
-                                "Quale comando desideri?"
-                }
-            
-            else:
-                return {
-                    "status": "error",
-                    "response": "❌ Comando non riconosciuto. Prova:\n"
-                                "'chiama Marco'\n"
-                                "'meteo Roma'\n"
-                                "'whatsapp Marco ciao'"
-                }
-        
-        except Exception as e:
-            logger.error(f"Error processing command: {e}")
-            return {
-                "status": "error",
-                "response": f"❌ Errore: {str(e)}"
-            }
-    
-    async def _handle_weather(self, command: str) -> Dict[str, Any]:
-        """Gestisce i comandi meteo"""
-        try:
-            city = self._extract_city(command)
-            
-            if not city:
-                return {
-                    "status": "error",
-                    "response": "❌ Quale città? Prova: 'meteo Roma'"
-                }
-            
-            weather = await self.weather_api.get_weather(city)
-            
-            if weather["status"] == "success":
-                data = weather["data"]
-                response = (
-                    f"🌤️ **{data['city']}**\n"
-                    f"🌡️ Temperatura: {data['temperature']}°C\n"
-                    f"💧 Umidità: {data['humidity']}%\n"
-                    f"💨 Vento: {data['wind_speed']} km/h\n"
-                    f"👁️ Visibilità: {data['visibility']} km\n"
-                    f"📝 Condizioni: {data['description']}"
-                )
-                return {
-                    "status": "success",
-                    "response": response,
-                    "data": weather["data"]
-                }
-            else:
-                return weather
-        
-        except Exception as e:
-            logger.error(f"Weather error: {e}")
-            return {
-                "status": "error",
-                "response": f"❌ Errore meteo: {str(e)}"
-            }
-    
-    async def _handle_call(self, contact: str, device_id: str, call_type: str = "phone") -> Dict[str, Any]:
-        """Gestisce le chiamate"""
-        try:
-            if not device_id or device_id not in self._get_connected_devices():
-                return {
-                    "status": "error",
-                    "response": "❌ Device non connesso. Accendi l'app Android!"
-                }
-            
-            is_number = bool(re.match(r'^[0-9+\s\-()]*$', contact))
-            
-            if is_number:
-                phone = contact.strip()
-                self.last_contact_phone = phone
-                contact_display = phone
-            else:
-                phone = contact.strip()
-                self.last_contact_name = contact
-                contact_display = f"{contact} ({phone})"
-            
-            clean_phone = re.sub(r'[^0-9+]', '', phone)
-            
-            if call_type == "phone":
-                await self.device_hub.send_command(device_id, {
-                    "type": "command",
-                    "action": "call_start",
-                    "id": "call_" + str(__import__('time').time()),
-                    "data": {
-                        "phone": clean_phone,
-                        "contact_name": self.last_contact_name if not is_number else None
-                    }
-                })
-                
-                return {
-                    "status": "success",
-                    "response": f"📞 Sto chiamando {contact_display}..."
-                }
-            
-            elif call_type == "whatsapp":
-                await self.device_hub.send_command(device_id, {
-                    "type": "command",
-                    "action": "whatsapp_send",
-                    "id": "whats_" + str(__import__('time').time()),
-                    "data": {
-                        "phone": clean_phone,
-                        "message": "",
-                        "contact_name": self.last_contact_name if not is_number else None
-                    }
-                })
-                
-                return {
-                    "status": "success",
-                    "response": f"💬 Aprendo WhatsApp con {contact_display}..."
-                }
-        
-        except Exception as e:
-            logger.error(f"Call error: {e}")
-            return {
-                "status": "error",
-                "response": f"❌ Errore chiamata: {str(e)}"
-            }
-    
-    async def _handle_whatsapp(self, command: str, device_id: str) -> Dict[str, Any]:
-        """Gestisce i messaggi WhatsApp"""
-        try:
-            if not device_id or device_id not in self._get_connected_devices():
-                return {
-                    "status": "error",
-                    "response": "❌ Device non connesso!"
-                }
-            
-            parts = command.split(None, 1)
-            
-            if len(parts) < 1:
-                return {
-                    "status": "error",
-                    "response": "❌ Usa: whatsapp Marco ciao"
-                }
-            
-            contact = parts[0]
-            message = parts[1] if len(parts) > 1 else ""
-            
-            clean_contact = re.sub(r'[^0-9+ ]', '', contact)
-            
-            await self.device_hub.send_command(device_id, {
-                "type": "command",
-                "action": "whatsapp_send",
-                "id": "whats_" + str(__import__('time').time()),
-                "data": {
-                    "phone": clean_contact,
-                    "message": message,
-                    "contact_name": contact if not re.match(r'^[0-9+\s\-()]*$', contact) else None
-                }
-            })
-            
-            return {
-                "status": "success",
-                "response": f"💬 Inviando messaggio WhatsApp a {contact}...\nMessaggio: '{message}'"
-            }
-        
-        except Exception as e:
-            logger.error(f"WhatsApp error: {e}")
-            return {
-                "status": "error",
-                "response": f"❌ Errore WhatsApp: {str(e)}"
-            }
-    
-    async def _handle_notifications(self, device_id: str) -> Dict[str, Any]:
-        """Gestisce la lettura delle notifiche"""
-        try:
-            if not device_id or device_id not in self._get_connected_devices():
-                return {
-                    "status": "error",
-                    "response": "❌ Device non connesso!"
-                }
-            
-            result = await self.device_hub.send_command(device_id, {
-                "type": "command",
-                "action": "notifications_read",
-                "id": "notif_" + str(__import__('time').time())
-            })
-            
-            return {
-                "status": "success",
-                "response": f"📱 Notifiche: {result}"
-            }
-        
-        except Exception as e:
-            logger.error(f"Notifications error: {e}")
-            return {
-                "status": "error",
-                "response": f"❌ Errore notifiche: {str(e)}"
-            }
-    
-    def _extract_city(self, command: str) -> Optional[str]:
-        """Estrae il nome della città dal comando"""
-        match = re.search(r'(?:meteo|tempo|temperatura|clima)\s+([A-Za-zÀ-ÿ\s]+)', command, re.IGNORECASE)
-        
-        if match:
-            city = match.group(1).strip()
-            return ' '.join(word.capitalize() for word in city.split())
-        
-        return None
-    
-    def _get_connected_devices(self) -> list:
-        """Ottiene lista dei device connessi"""
-        if self.device_hub:
-            return self.device_hub.list_devices()
-        return []
+        logger.info("✅ JARVIS AI initialized")
     
     def set_device_hub(self, device_hub):
-        """Imposta il device hub"""
+        """Set DeviceHub reference for device commands"""
         self.device_hub = device_hub
+        logger.info("✅ DeviceHub reference set")
+    
+    async def process_input(self, text: str, websocket=None) -> str:
+        """
+        Main processing function
+        1. Parse intent
+        2. Extract entities
+        3. Route to appropriate handler
+        """
+        try:
+            logger.info(f"📨 Processing: {text}")
+            
+            # Parse intent and entities
+            intent, entities, confidence = await self._parse_intent(text)
+            
+            if confidence < 0.5:
+                return "Non ho capito bene. Puoi ripetere?"
+            
+            logger.info(f"🎯 Intent: {intent} (confidence: {confidence:.2f})")
+            
+            # ============== DEVICE ACTIONS ==============
+            if intent in ["call", "whatsapp_send", "sms_send", "read_notifications"]:
+                response = await self._handle_device_action(intent, entities)
+                return response
+            
+            # ============== WEATHER ==============
+            elif intent == "get_weather":
+                response = await self._handle_weather()
+                return response
+            
+            elif intent == "get_location_weather":
+                city = entities.get("city", "Rome")
+                response = await self._handle_location_weather(city)
+                return response
+            
+            # ============== GENERAL AI ==============
+            elif intent == "greeting":
+                return "Ciao! Sono JARVIS, il tuo assistente vocale. Come posso aiutarti?"
+            
+            elif intent == "time":
+                current_time = datetime.now().strftime("%H:%M:%S")
+                return f"Sono le {current_time}"
+            
+            else:
+                # Fall back to GPT for general queries
+                response = await self._query_gpt(text)
+                return response
+        
+        except Exception as e:
+            logger.error(f"❌ Processing error: {e}", exc_info=True)
+            return f"Errore durante l'elaborazione: {str(e)}"
+    
+    # ============== DEVICE ACTION HANDLER ==============
+    
+    async def _handle_device_action(self, intent: str, entities: Dict[str, Any]) -> str:
+        """
+        Route device commands to appropriate handlers
+        """
+        try:
+            if not self.device_hub:
+                logger.warning("⚠️ DeviceHub not initialized")
+                return "Il dispositivo non è connesso"
+            
+            if intent == "call":
+                contact = entities.get("contact_name", "")
+                phone = entities.get("phone_number")
+                
+                if not contact:
+                    return "Dimmi a chi vuoi chiamare"
+                
+                result = await DeviceCommandHandler.handle_call_command(
+                    contact, phone, self.device_hub
+                )
+                return result.get("message", "Errore")
+            
+            elif intent == "whatsapp_send":
+                contact = entities.get("contact_name", "")
+                message = entities.get("message_content", "")
+                phone = entities.get("phone_number")
+                
+                if not contact or not message:
+                    return "Dimmi a chi inviare e cosa scrivere"
+                
+                result = await DeviceCommandHandler.handle_whatsapp_command(
+                    contact, message, phone, self.device_hub
+                )
+                return result.get("message", "Errore")
+            
+            elif intent == "sms_send":
+                contact = entities.get("contact_name", "")
+                message = entities.get("message_content", "")
+                phone = entities.get("phone_number")
+                
+                if not contact or not message:
+                    return "Dimmi a chi inviare l'SMS e cosa scrivere"
+                
+                result = await DeviceCommandHandler.handle_sms_command(
+                    contact, message, phone, self.device_hub
+                )
+                return result.get("message", "Errore")
+            
+            elif intent == "read_notifications":
+                result = await DeviceCommandHandler.handle_notifications_command(
+                    self.device_hub
+                )
+                return result.get("message", "Errore")
+            
+            return "Comando non riconosciuto"
+        
+        except Exception as e:
+            logger.error(f"❌ Device action error: {e}", exc_info=True)
+            return f"Errore: {str(e)}"
+    
+    # ============== WEATHER HANDLER ==============
+    
+    async def _handle_weather(self) -> str:
+        """Get current weather"""
+        try:
+            logger.info("🌤️ Fetching weather...")
+            # TODO: Implement weather API call
+            return "La temperatura è di 15 gradi con cielo sereno"
+        except Exception as e:
+            logger.error(f"❌ Weather error: {e}")
+            return "Non riesco a recuperare le informazioni meteo"
+    
+    async def _handle_location_weather(self, city: str) -> str:
+        """Get weather for specific city"""
+        try:
+            logger.info(f"🌍 Fetching weather for {city}...")
+            # TODO: Implement location weather API call
+            return f"A {city} la temperatura è di 15 gradi"
+        except Exception as e:
+            logger.error(f"❌ Location weather error: {e}")
+            return f"Non riesco a recuperare il meteo di {city}"
+    
+    # ============== NLU & INTENT DETECTION ==============
+    
+    async def _parse_intent(self, text: str) -> Tuple[str, Dict[str, Any], float]:
+        """
+        Parse user input and extract intent + entities
+        Returns: (intent, entities, confidence)
+        """
+        try:
+            text_lower = text.lower()
+            
+            # Simple rule-based intent matching
+            intents_keywords = {
+                "call": ["chiama", "telefono", "numero", "call"],
+                "whatsapp_send": ["whatsapp", "invia", "messaggio", "chat"],
+                "sms_send": ["sms", "messaggio testo"],
+                "read_notifications": ["notifiche", "notification", "avvisi"],
+                "get_weather": ["meteo", "temperature", "pioggia", "neve"],
+                "get_location_weather": ["meteo", "tempo", "città"],
+                "greeting": ["ciao", "salve", "hey", "hello"],
+                "time": ["ora", "time", "quando"],
+            }
+            
+            best_intent = None
+            best_confidence = 0.0
+            
+            for intent, keywords in intents_keywords.items():
+                for keyword in keywords:
+                    if keyword in text_lower:
+                        confidence = 0.9
+                        if confidence > best_confidence:
+                            best_confidence = confidence
+                            best_intent = intent
+                        break
+            
+            if not best_intent:
+                best_intent = "general_query"
+                best_confidence = 0.3
+            
+            # Extract entities
+            entities = await self._extract_entities(text, best_intent)
+            
+            return best_intent, entities, best_confidence
+        
+        except Exception as e:
+            logger.error(f"❌ Intent parsing error: {e}")
+            return "general_query", {}, 0.0
+    
+    async def _extract_entities(self, text: str, intent: str) -> Dict[str, Any]:
+        """
+        Extract entities from user input based on intent
+        """
+        entities = {}
+        text_lower = text.lower()
+        
+        try:
+            if intent in ["call", "whatsapp_send", "sms_send"]:
+                # Extract contact name (simple extraction)
+                words = text_lower.split()
+                
+                # Look for prepositions
+                for i, word in enumerate(words):
+                    if word in ["a", "di", "per"] and i + 1 < len(words):
+                        contact = words[i + 1]
+                        if contact not in ["whatsapp", "sms", "chiama"]:
+                            entities["contact_name"] = contact.capitalize()
+                            break
+                
+                # Extract message content for WhatsApp/SMS
+                if intent in ["whatsapp_send", "sms_send"]:
+                    if ":" in text:
+                        message_part = text.split(":", 1)[1].strip()
+                        entities["message_content"] = message_part
+            
+            return entities
+        
+        except Exception as e:
+            logger.error(f"❌ Entity extraction error: {e}")
+            return entities
+    
+    # ============== GPT FALLBACK ==============
+    
+    async def _query_gpt(self, text: str) -> str:
+        """
+        Fallback to GPT for general queries
+        """
+        try:
+            logger.info("🤖 Querying GPT...")
+            
+            response = await asyncio.to_thread(
+                openai.ChatCompletion.create,
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are JARVIS, a helpful AI assistant. Answer in Italian."
+                    },
+                    {"role": "user", "content": text}
+                ],
+                max_tokens=200,
+                temperature=0.7
+            )
+            
+            reply = response.choices[0].message.content
+            logger.info(f"✅ GPT reply: {reply}")
+            return reply
+        
+        except Exception as e:
+            logger.error(f"❌ GPT query error: {e}")
+            return "Scusa, non riesco a elaborare la tua richiesta"
+
+# Global instance
+jarvis = JarvisAI()
+
+async def process_user_input(text: str, websocket=None) -> str:
+    """Public API for processing user input"""
+    return await jarvis.process_input(text, websocket)
+
+def init_jarvis(device_hub):
+    """Initialize JARVIS with DeviceHub"""
+    jarvis.set_device_hub(device_hub)
+    logger.info("✅ JARVIS fully initialized")

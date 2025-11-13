@@ -3,282 +3,483 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JARVIS - AI Assistant</title>
+    <title>🤖 JARVIS - Iron Man AI</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            width: 100vw; height: 100vh;
-            background: linear-gradient(135deg, #0a0e27 0%, #16213e 50%, #0f3460 100%);
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
+
+        .header {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #00d4ff;
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            font-size: 32px;
+            color: #00d4ff;
+            text-shadow: 0 0 20px #00d4ff;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            color: #888;
+            font-size: 12px;
+        }
+
         .container {
-            display: flex; flex-direction: column; align-items: center; gap: 30px; z-index: 10;
-            width: 90%; max-width: 800px;
+            display: flex;
+            flex: 1;
+            gap: 20px;
+            padding: 20px;
+            overflow: hidden;
         }
-        .orb-container { position: relative; width: 200px; height: 200px; perspective: 1000px; }
-        .orb {
-            width: 200px; height: 200px; border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, #1e90ff, #00a8ff 20%, #0066cc 50%, #003d99 100%);
-            box-shadow: 0 0 40px rgba(30, 144, 255, 0.8), 0 0 80px rgba(0, 168, 255, 0.4),
-                inset -30px -30px 60px rgba(0, 0, 0, 0.3), inset 20px 20px 40px rgba(255, 255, 255, 0.15);
-            animation: orbPulse 2s ease-in-out infinite;
-            position: relative; transform-style: preserve-3d;
+
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: rgba(22, 33, 62, 0.7);
+            border: 1px solid #00d4ff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.2);
         }
-        @keyframes orbPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
-        .orb.processing { animation: orbProcessing 0.2s ease-in-out infinite !important; }
-        @keyframes orbProcessing {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.08); }
-        }
-        .status-info { text-align: center; font-size: 14px; color: #00a8ff; min-height: 40px; }
-        .controls { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; justify-content: center; }
-        .input-group {
-            display: flex; gap: 10px;
-            background: rgba(30, 144, 255, 0.1); border: 1px solid rgba(30, 144, 255, 0.3);
-            border-radius: 30px; padding: 10px 20px; backdrop-filter: blur(10px);
-        }
-        input[type="text"] {
-            background: transparent; border: none; color: #fff; font-size: 14px;
-            width: 350px; outline: none;
-        }
-        input[type="text"]::placeholder { color: rgba(255, 255, 255, 0.5); }
-        button {
-            background: linear-gradient(135deg, #1e90ff, #00a8ff); border: none; color: white;
-            padding: 10px 20px; border-radius: 20px; cursor: pointer; font-size: 14px; font-weight: 600;
-            transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(30, 144, 255, 0.4);
-        }
-        button:hover { transform: translateY(-2px); }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-        .output-box {
-            background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(30, 144, 255, 0.3);
-            border-radius: 15px; padding: 20px; width: 100%; max-width: 750px;
-            max-height: 350px; overflow-y: auto; backdrop-filter: blur(10px);
-        }
-        .output-text {
-            color: #00ff88; font-size: 13px; line-height: 1.6;
-            font-family: 'Courier New', monospace;
-        }
+
         .message {
-            margin-bottom: 10px; padding: 8px 12px; border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            animation: slideIn 0.3s ease-out;
         }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         .message.user {
-            background: rgba(30, 144, 255, 0.2); color: #00d9ff; text-align: right;
+            justify-content: flex-end;
         }
-        .message.assistant {
-            background: rgba(0, 255, 136, 0.1); color: #00ff88;
+
+        .message.jarvis {
+            justify-content: flex-start;
         }
-        .message.system {
-            color: rgba(255, 255, 255, 0.6); font-size: 12px; font-style: italic;
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            word-wrap: break-word;
         }
-        .particles {
-            position: fixed; width: 100%; height: 100%;
-            top: 0; left: 0; z-index: 1;
+
+        .message.user .message-content {
+            background: #00d4ff;
+            color: #000;
+            border-bottom-right-radius: 2px;
         }
-        .particle {
-            position: absolute; width: 2px; height: 2px;
-            background: rgba(30, 144, 255, 0.5); border-radius: 50%;
-            animation: float 20s infinite;
+
+        .message.jarvis .message-content {
+            background: rgba(100, 200, 255, 0.1);
+            border: 1px solid #00d4ff;
+            border-bottom-left-radius: 2px;
         }
-        @keyframes float {
-            0% { transform: translateY(100vh); opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { transform: translateY(-100vh); opacity: 0; }
+
+        .message.jarvis .message-avatar {
+            width: 32px;
+            height: 32px;
+            background: #00d4ff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000;
+            font-weight: bold;
+            font-size: 14px;
         }
-        .status-bar {
-            position: fixed; bottom: 20px; right: 20px; font-size: 12px;
-            color: rgba(255, 255, 255, 0.6);
+
+        .input-area {
+            padding: 20px;
+            border-top: 1px solid #00d4ff;
+            background: rgba(0, 0, 0, 0.2);
+            display: flex;
+            gap: 10px;
         }
-        .dot {
-            display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-            background: #00ff88; margin-right: 6px; animation: blink 1.5s infinite;
+
+        .input-container {
+            flex: 1;
+            display: flex;
+            gap: 10px;
         }
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid #00d4ff;
+            color: #fff;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        input[type="text"]:focus {
+            background: rgba(0, 212, 255, 0.1);
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
+        }
+
+        input[type="text"]::placeholder {
+            color: #666;
+        }
+
+        button {
+            padding: 12px 24px;
+            background: #00d4ff;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #00f0ff;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+            transform: scale(1.05);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button.recording {
+            background: #ff3333;
+            animation: pulse 0.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(255, 51, 51, 0.5); }
+            50% { box-shadow: 0 0 40px rgba(255, 51, 51, 1); }
+        }
+
+        .status {
+            text-align: center;
+            color: #888;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .status.recording {
+            color: #ff3333;
+            font-weight: bold;
+        }
+
+        .status.processing {
+            color: #ffa500;
+            font-weight: bold;
+        }
+
+        audio {
+            width: 100%;
+            margin-top: 5px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(0, 212, 255, 0.3);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .scroll-bottom {
+            text-align: center;
+            padding: 10px;
+            color: #00d4ff;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .scroll-bottom:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
-    <div class="particles" id="particles"></div>
-    <div class="container">
-        <div class="orb-container">
-            <div class="orb" id="orb"></div>
-        </div>
-        <div class="status-info" id="status">🔴 Connessione...</div>
-        <div class="controls">
-            <div class="input-group">
-                <input type="text" id="inputField" placeholder="Scrivi un comando (es: meteo Roma, chiama +39...)">
-                <button id="sendBtn" onclick="sendMessage()" disabled>Invia</button>
-            </div>
-        </div>
-        <div class="output-box" id="outputBox">
-            <div class="output-text" id="output">
-                <div class="message system">Connessione in corso...</div>
-            </div>
-        </div>
+    <div class="header">
+        <h1>🤖 JARVIS v2.3.0</h1>
+        <p>Iron Man AI Assistant | Push-to-Talk Enabled | Voice: ONYX (IT)</p>
     </div>
-    <div class="status-bar">
-        <span class="dot"></span>
-        <span id="deviceStatus">Disconnesso</span>
+
+    <div class="container">
+        <div class="chat-area">
+            <div class="messages" id="messages">
+                <div class="message jarvis">
+                    <div class="message-avatar">J</div>
+                    <div class="message-content">
+                        Buongiorno. JARVIS a vostra disposizione. Potete parlarmi o scrivere.
+                    </div>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <div class="input-container">
+                    <input 
+                        type="text" 
+                        id="inputText" 
+                        placeholder="Scrivi un messaggio o premi il microfono per parlare..."
+                        autocomplete="off"
+                    >
+                    <button id="sendBtn">Invia</button>
+                    <button id="micBtn" title="Tieni premuto per parlare">🎙️</button>
+                </div>
+            </div>
+            <div class="status" id="status"></div>
+        </div>
     </div>
 
     <script>
+        const messagesDiv = document.getElementById('messages');
+        const inputText = document.getElementById('inputText');
+        const sendBtn = document.getElementById('sendBtn');
+        const micBtn = document.getElementById('micBtn');
+        const statusDiv = document.getElementById('status');
+
         let ws = null;
-        const wsUrl = 'wss://nwe-pasqualini.tail3fb552.ts.net:5000/ws/jarvis';
-        const apiUrl = 'https://nwe-pasqualini.tail3fb552.ts.net:5000';
+        let recording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
 
-        function connect() {
-            try {
-                console.log('[WS] Attempting to connect to:', wsUrl);
-                ws = new WebSocket(wsUrl);
+        // WebSocket Connection
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            ws = new WebSocket(`${protocol}//${host}/ws/jarvis`);
 
-                ws.onopen = () => {
-                    console.log('[WS] ✅ Connected');
-                    log('✅ Connesso a JARVIS', 'system');
-                    document.getElementById('status').innerHTML = '🟢 Online | JARVIS v2.3.0';
-                    document.getElementById('sendBtn').disabled = false;
-                    document.getElementById('inputField').disabled = false;
-                    
-                    // Fetch device status
-                    fetch(`${apiUrl}/api/status`)
-                        .then(r => r.json())
-                        .then(data => {
-                            const device = data.device_connected ? '🟢 Device' : '🔴 Device';
-                            document.getElementById('deviceStatus').textContent = `${device} ${data.device_id || 'Unknown'}`;
-                        })
-                        .catch(e => {
-                            console.error('Device status error:', e);
-                            document.getElementById('deviceStatus').textContent = '⚠️ Device status unavailable';
-                        });
-                };
+            ws.onopen = () => {
+                statusDiv.textContent = '✅ Connesso a JARVIS';
+                statusDiv.style.color = '#00d4ff';
+            };
 
-                ws.onmessage = (event) => {
-                    console.log('[WS] Message received:', event.data);
-                    try {
-                        const data = JSON.parse(event.data);
-                        console.log('[WS] Parsed data:', data);
-                        
-                        if (data.status === 'ok' && data.response) {
-                            log(data.response, 'assistant');
-                            document.getElementById('orb').classList.remove('processing');
-                        } else if (data.status === 'processing') {
-                            document.getElementById('orb').classList.add('processing');
-                        } else if (data.status === 'error') {
-                            log('❌ ' + (data.message || 'Unknown error'), 'system');
-                            document.getElementById('orb').classList.remove('processing');
-                        } else if (data.text) {
-                            log(data.text, 'assistant');
-                            document.getElementById('orb').classList.remove('processing');
-                        } else if (data.response) {
-                            log(data.response, 'assistant');
-                            document.getElementById('orb').classList.remove('processing');
-                        }
-                    } catch (e) {
-                        console.error('[WS] Parse error:', e);
-                        try {
-                            log('📤 ' + event.data, 'assistant');
-                        } catch (e2) {
-                            log('Response received', 'system');
-                        }
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.status === 'processing') {
+                    statusDiv.textContent = '⏳ Elaborazione in corso...';
+                    statusDiv.classList.add('processing');
+                } else if (data.response) {
+                    statusDiv.textContent = '';
+                    statusDiv.classList.remove('processing');
+                    addMessage('jarvis', data.response);
+
+                    // Play audio if available
+                    if (data.has_audio && data.audio_base64) {
+                        playAudio(data.audio_base64);
                     }
+                }
+            };
+
+            ws.onerror = (error) => {
+                statusDiv.textContent = '❌ Errore di connessione';
+                statusDiv.style.color = '#ff3333';
+            };
+
+            ws.onclose = () => {
+                statusDiv.textContent = '❌ Disconnesso';
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        // Initialize Mic
+        async function initMic() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
                 };
 
-                ws.onerror = (error) => {
-                    console.error('[WS] Error:', error);
-                    log('❌ Connection error: ' + (error.message || 'Unknown error'), 'system');
-                    document.getElementById('status').innerHTML = '🔴 Error | JARVIS v2.3.0';
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    audioChunks = [];
+                    await transcribeAudio(audioBlob);
                 };
-
-                ws.onclose = () => {
-                    console.log('[WS] ❌ Connection closed');
-                    log('❌ Disconnesso da JARVIS', 'system');
-                    document.getElementById('status').innerHTML = '🔴 Offline | JARVIS v2.3.0';
-                    document.getElementById('sendBtn').disabled = true;
-                    document.getElementById('inputField').disabled = true;
-                    
-                    // Attempt reconnect after 3 seconds
-                    setTimeout(() => {
-                        log('🔄 Tentativo di riconnessione...', 'system');
-                        connect();
-                    }, 3000);
-                };
-            } catch (e) {
-                console.error('[WS] Connection error:', e);
-                log('❌ Failed to connect: ' + e.message, 'system');
+            } catch (error) {
+                statusDiv.textContent = '❌ Microfono non disponibile';
             }
         }
 
-        function log(msg, type = 'system') {
-            const output = document.getElementById('output');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message ' + type;
-            const time = new Date().toLocaleTimeString('it-IT', {hour: '2-digit', minute: '2-digit'});
-            messageDiv.innerHTML = '[' + time + '] ' + msg;
-            output.appendChild(messageDiv);
-            const outputBox = document.getElementById('outputBox');
-            outputBox.scrollTop = outputBox.scrollHeight;
-        }
+        // Transcribe Audio with Whisper
+        async function transcribeAudio(audioBlob) {
+            statusDiv.textContent = '📝 Trascrizione in corso...';
+            statusDiv.classList.add('processing');
 
-        function sendMessage() {
-            const input = document.getElementById('inputField');
-            const msg = input.value.trim();
-            
-            if (!msg) {
-                log('❌ Inserisci un comando', 'system');
-                return;
-            }
-            
-            if (!ws || ws.readyState !== 1) {
-                log('❌ Non connesso a JARVIS', 'system');
-                return;
-            }
+            const formData = new FormData();
+            formData.append('file', audioBlob, 'audio.wav');
+            formData.append('model', 'whisper-1');
+            formData.append('language', 'it');
 
             try {
-                log(msg, 'user');
-                document.getElementById('orb').classList.add('processing');
-                
-                // 🔥 FORMATO CORRETTO PER IL SERVER
-                const payload = JSON.stringify({
-                    text: msg,
-                    type: "text"
+                const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('openai_key') || ''}`
+                    },
+                    body: formData
                 });
-                
-                console.log('[WS] Sending:', payload);
-                ws.send(payload);
-                input.value = '';
-                input.focus();
-            } catch (e) {
-                console.error('[WS] Send error:', e);
-                log('❌ Errore nell\'invio: ' + e.message, 'system');
-                document.getElementById('orb').classList.remove('processing');
+
+                const data = await response.json();
+                if (data.text) {
+                    inputText.value = data.text;
+                    sendMessage();
+                }
+            } catch (error) {
+                statusDiv.textContent = '❌ Errore trascrizione';
             }
         }
 
-        document.getElementById('inputField').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendMessage();
+        // Send Message
+        function sendMessage() {
+            const text = inputText.value.trim();
+            if (!text) return;
+
+            addMessage('user', text);
+            inputText.value = '';
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    message: text,
+                    audio: true
+                }));
+            }
+        }
+
+        // Add Message to Chat
+        function addMessage(role, text) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role}`;
+
+            if (role === 'jarvis') {
+                msgDiv.innerHTML = `
+                    <div class="message-avatar">J</div>
+                    <div class="message-content">${text}</div>
+                `;
+            } else {
+                msgDiv.innerHTML = `<div class="message-content">${text}</div>`;
+            }
+
+            messagesDiv.appendChild(msgDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Play Audio
+        function playAudio(base64Audio) {
+            const audio = new Audio(`data:audio/mpeg;base64,${base64Audio}`);
+            audio.play();
+        }
+
+        // Event Listeners
+        sendBtn.addEventListener('click', sendMessage);
+        inputText.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        // Mic Button - Push to Talk
+        micBtn.addEventListener('mousedown', async () => {
+            if (!mediaRecorder) await initMic();
+            
+            recording = true;
+            micBtn.classList.add('recording');
+            statusDiv.textContent = '🎙️ Registrazione...';
+            statusDiv.classList.add('recording');
+            
+            audioChunks = [];
+            mediaRecorder.start();
+        });
+
+        micBtn.addEventListener('mouseup', () => {
+            if (recording) {
+                recording = false;
+                micBtn.classList.remove('recording');
+                statusDiv.classList.remove('recording');
+                mediaRecorder.stop();
             }
         });
 
-        function createParticles() {
-            const container = document.getElementById('particles');
-            for (let i = 0; i < 30; i++) {
-                const p = document.createElement('div');
-                p.className = 'particle';
-                p.style.left = Math.random() * 100 + '%';
-                p.style.animationDelay = Math.random() * 20 + 's';
-                container.appendChild(p);
+        micBtn.addEventListener('mouseleave', () => {
+            if (recording) {
+                recording = false;
+                micBtn.classList.remove('recording');
+                statusDiv.classList.remove('recording');
+                mediaRecorder.stop();
             }
-        }
+        });
 
-        createParticles();
-        console.log('[INIT] JARVIS Web Client v2.3.0 Ready');
-        connect();
+        // Mobile touch support
+        micBtn.addEventListener('touchstart', async (e) => {
+            e.preventDefault();
+            if (!mediaRecorder) await initMic();
+            
+            recording = true;
+            micBtn.classList.add('recording');
+            statusDiv.textContent = '🎙️ Registrazione...';
+            statusDiv.classList.add('recording');
+            
+            audioChunks = [];
+            mediaRecorder.start();
+        });
+
+        micBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            if (recording) {
+                recording = false;
+                micBtn.classList.remove('recording');
+                statusDiv.classList.remove('recording');
+                mediaRecorder.stop();
+            }
+        });
+
+        // Initialize
+        initMic();
+        connectWebSocket();
     </script>
 </body>
 </html>
